@@ -2,10 +2,9 @@ import React, { useState, useEffect } from 'react';
 
 // TODO: Manual Sorting
 // TODO: Add as "category" buttons for Custom items. Maybe a button for each category
-// TODO: Removal should be modal — toggle "shopping/editing" to toggle display of list and display of remove options
-// Top margin
+// TODO: Save on edit, debounced
+// TODO: Better caching?
 
-// Define the type for Current List:
 export interface Item {
 	name: string;
 	status: string;
@@ -202,7 +201,13 @@ export default function App() {
 				onClick={() => setIsRemoving(!isRemoving)}
 				className="px-4 py-2 bg-gray-500 text-white rounded hover:bg-gray-600 mb-4"
 			>
-				{isRemoving ? "Done Editing" : "Edit List"}
+				{isRemoving ? "Done Removing" : "Remove Items"}
+			</button>
+			<button
+				onClick={saveList}
+				className="px-4 py-2 bg-blue-500 text-white rounded hover:bg-blue-600"
+			>
+				Save List
 			</button>
 			<hr />
 
@@ -240,15 +245,7 @@ export default function App() {
 					onChange={addItemByName}
 				/>
 			))}
-			<CustomItem onChange={addItemByName} />
-			
-			<hr />
-			<button
-				onClick={saveList}
-				className="px-4 py-2 bg-blue-500 text-white rounded hover:bg-blue-600"
-			>
-				Save List
-			</button>
+			<CustomItem onChange={addItemByName} />	
 		</div>
 	);
 }

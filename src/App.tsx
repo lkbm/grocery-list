@@ -1,14 +1,20 @@
 import React, { useState, useEffect } from 'react';
 
+// TODO: Sorting
+// TODO: Removal should be modal — toggle "shopping/editing" to toggle display of list and display of remove options
+// Top margin
+
 // Define the type for Current List:
 export interface Item {
 	name: string;
 	status: string;
+	category?: string;
 };
 
 export interface Data {
 	value: string;
 }
+
 
 export default function App() {
 	const [currentList, setCurrentList] = useState<Item[]>([]);
@@ -17,80 +23,97 @@ export default function App() {
 
 	// Set as a list of Items:
 	const DEFAULT_LIST = JSON.stringify([
-		{ name: 'Dragonfruit', status: "need" },
-		{ name: 'Oranges', status: "need" },
-		{ name: 'DDP', status: "need" },
-		{ name: 'CF Diet Coke', status: "need" },
-		{ name: 'Egg', status: "need" },
+		{ name: 'Dragonfruit', status: "need", category: "produce"},
+		{ name: 'Oranges', status: "need", category: "produce"},
+		{ name: 'DDP', status: "need", category: "soda" },
+		{ name: 'CF Diet Coke', status: "need", category: "soda" },
+		{ name: 'Egg', status: "need", category: "eggs/dairy" },
 	]);
 
 	// TODO: Make "possible items" also a kv
-	const POSSIBLE_ITEMS = [
+	const DEFAULT_POSSIBLE_ITEMS = {
 		// Produce
-		"Tomato, small",
-		"Tomato, big",
-		"🌶️Jalapeno",
-		"🟥🫑",
-		"🍄‍🟫",
-		"Spinach",
-		"Brocolli",
-		"Fresh basil",
-		"🍓",
-		"🍒",
-		"⭐️fruit",
-		"🐉fruit",
-		"Oranges",
+		"Tomato, small": "produce",
+		"Tomato, big": "produce",
+		"🌶️Jalapeno": "produce",
+		"🟥🫑": "produce",
+		"🍄‍🟫": "produce",
+		"Spinach": "produce",
+		"Brocolli": "produce",
+		"Fresh basil": "produce",
+		"🍒": "produce",
+		"🍓": "produce",
+		"Raspberries": "produce",
+		"Blueberries": "produce",
+		"⭐️fruit": "produce",
+		"🐉fruit": "produce",
+		"Oranges": "produce",
 		
 		// Corner
-		"Brie",
-		"Fresh Mozarella",
-		"🌽🌯",
-		"🌾🌯",
-		"Bacon",
-		"Kielbasa",
+		"Brie": "corner",
+		"Fresh Mozarella": "corner",
+		"🌽🌯": "corner",
+		"🌾🌯": "corner",
+		"Bacon": "corner",
+		"Kielbasa": "corner",
 		
 		// Cans
-		"Pintos Beans",
-		"🥫Sauce",
-		"🥫Whole",
-		"🥫Diced",
-		"🥫Paste",
-		"🥫Puree",
+		"Pinto Beans": "cans",
+		"🥫Sauce": "cans",
+		"🥫Whole": "cans",
+		"🥫Diced": "cans",
+		"🥫Paste": "cans",
+		"🥫Puree": "cans",
 		
 		// Pasta
-		"Manicotti",
-		"Spaghetti",
-		"Spaghetti, GF",
+		"Manicotti": "pasta",
+		"Spaghetti": "pasta",
+		"Spaghetti, GF": "pasta",
 		
 		// Soup
-		"Brocolli Cheddar soup",
+		"Brocolli Cheddar soup": "soup",
 
 		// Drinks
-		"Hot Chocolate",
-		"White Hot Chocolate",
-		"Green Tea",
-		"Peppermint Tea",
+		"Hot Chocolate": "drinks",
+		"White Hot Chocolate": "drinks",
+		"Green Tea": "drinks",
+		"Peppermint Tea": "drinks",
 
 		// Egg/Dairy:
-		"Chocolate Soy Milk",
-		"🥚",
-		"🧀 Moz",
-		"🧀 Ched",
-		"🧀 Ricotta",
+		"Chocolate Soy Milk": "eggs/dairy",
+		"🥚": "eggs/dairy",
+		"🧀 Moz": "eggs/dairy",
+		"🧀 Ched": "eggs/dairy",
+		"🧀 Ricotta": "eggs/dairy",
 
 		// Soda:
-		"DDP",
-		"CF Diet Coke",
-		"Sm. CF Diet Coke",
+		"DDP": "soda",
+		"CF Diet Coke": "soda",
+		"Sm. CF Diet Coke": "soda",
 
 		// Frozen
-		"Beyond Meat Sausage",
-		"Morningstar Sausage",
-		"Impossible Beef",
-		"🍨LM",
-		"🍨🥜",
-		"🍨Dulce",
+		"Beyond Meat Sausage": "frozen",
+		"Morningstar Sausage": "frozen",
+		"Impossible Beef": "frozen",
+		"🍨LM": "frozen",
+		"🍨🥜": "frozen",
+		"🍨Dulce": "frozen",
+	};
+
+	const sortOrder = [
+		"Unknown",
+		"produce",
+		"corner",
+		"cans",
+		"pasta",
+		"soup",
+		"drinks",
+		"eggs/dairy",
+		"soda",
+		"frozen",
 	];
+
+	const [POSSIBLE_ITEMS, setPossibleItems] = useState<string[]>([]);
 
 	useEffect(() => {
 		// Load initial state
@@ -104,7 +127,26 @@ export default function App() {
 					setCurrentList(JSON.parse(DEFAULT_LIST));
 				}
 				setLoading(false);
-				return 1;
+			});
+		fetch(`/api/state/${listName}-options`)
+			.then(res => res.json().catch(() => ({ value: JSON.stringify(Object.keys(DEFAULT_POSSIBLE_ITEMS)) })))
+			.then(data => {
+				// TODO: This is untested.
+				const typedData = data as Data;
+				console.debug("typedData", typedData);
+				try {
+					console.debug("typedData.value", typedData.value);
+					if (typedData.value) {
+						console.debug("Setting");
+						setPossibleItems(JSON.parse(typedData.value));
+					}
+					else {
+						setPossibleItems(Object.keys(DEFAULT_POSSIBLE_ITEMS));
+					}
+				} catch {
+					setPossibleItems(Object.keys(DEFAULT_POSSIBLE_ITEMS));
+				}
+				setLoading(false);
 			});
 	}, []);
 
@@ -128,7 +170,8 @@ export default function App() {
 
 	const addItemByName = (itemName: string) => {
 		const newItems = [...currentList];
-		newItems.push({ name: itemName, status: "need" });
+		const category = (itemName in DEFAULT_POSSIBLE_ITEMS) ? DEFAULT_POSSIBLE_ITEMS[itemName as keyof typeof DEFAULT_POSSIBLE_ITEMS] : "Unknown";
+		newItems.push({ name: itemName, status: "need", category });
 		setCurrentList(newItems);
 	};
 
@@ -139,7 +182,15 @@ export default function App() {
 		setCurrentList(newItems);
 	}
 
-	const itemNamesOnList = Object.values(currentList).map((item) => item.name);
+	let itemNamesOnList = currentList
+		.sort((a, b) => {
+			const categoryA = a.category || "Unknown";
+			const categoryB = b.category || "Unknown";
+			console.debug("categoryA", categoryA);
+			return sortOrder.indexOf(categoryA) - sortOrder.indexOf(categoryB);
+		})
+		.map((item) => item.name);
+
 	const availableToAdd = POSSIBLE_ITEMS.filter((item) => !itemNamesOnList.includes(item));
 
 	if (loading) return <div>Loading......</div>;

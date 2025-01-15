@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 
-// TODO: Sorting
+// TODO: Manual Sorting
+// TODO: Add as "category" buttons for Custom items. Maybe a button for each category
 // TODO: Removal should be modal — toggle "shopping/editing" to toggle display of list and display of remove options
 // Top margin
 
@@ -20,6 +21,7 @@ export default function App() {
 	const [currentList, setCurrentList] = useState<Item[]>([]);
 	const [loading, setLoading] = useState(true);
 	const listName = window.location.hash.slice(1) || "default-list";
+	const [isRemoving, setIsRemoving] = useState(false);
 
 	// Set as a list of Items:
 	const DEFAULT_LIST = JSON.stringify([
@@ -196,16 +198,39 @@ export default function App() {
 	if (loading) return <div>Loading......</div>;
 	return (
 		<div>
-			<h2>Current List</h2>
-			{/* {JSON.stringify(currentList)} */}
-			{currentList.map((item) => (
-				<ListItem
-					key={item.name}
-					item={item}
-					currentValue={item.status === "carted"}
-					toggleCurrentItems={toggleCurrentItem}
-				/>
-			))}
+			<button 
+				onClick={() => setIsRemoving(!isRemoving)}
+				className="px-4 py-2 bg-gray-500 text-white rounded hover:bg-gray-600 mb-4"
+			>
+				{isRemoving ? "Done Editing" : "Edit List"}
+			</button>
+			<hr />
+
+			{!isRemoving ? (
+				<>
+					<h2>Current List</h2>
+					{currentList.map((item) => (
+						<ListItem
+							key={item.name}
+							item={item}
+							currentValue={item.status === "carted"}
+							toggleCurrentItems={toggleCurrentItem}
+						/>
+					))}
+				</>
+			) : (
+				<>
+					<h2>Remove from List</h2>
+					{currentList.map((item) => (
+						<AvailableItem
+							key={item.name}
+							itemName={item.name}
+							onChange={removeItemByName}
+							className={`removable-item ${item.status}`}
+						/>
+					))}
+				</>
+			)}
 			<hr />
 			<h2>Add to List</h2>
 			{availableToAdd.map((itemName) => (
@@ -216,17 +241,7 @@ export default function App() {
 				/>
 			))}
 			<CustomItem onChange={addItemByName} />
-			<hr />
-			<h2>Remove from List</h2>
-			{currentList.map((item) => (
-				<AvailableItem
-					key={item.name}
-					itemName={item.name}
-					onChange={removeItemByName}
-					className="removable-item"
-				/>
-			))}
-			<hr />
+			
 			<hr />
 			<button
 				onClick={saveList}

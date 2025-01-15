@@ -35,4 +35,8 @@
 
   .removable-item {
     background: #ffcccc;
+    border: 8px solid #ffcccc;
+  }
+  .carted {
+    background: #ffffcc;
   }

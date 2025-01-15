@@ -134,11 +134,8 @@ export default function App() {
 			.then(data => {
 				// TODO: This is untested.
 				const typedData = data as Data;
-				console.debug("typedData", typedData);
 				try {
-					console.debug("typedData.value", typedData.value);
 					if (typedData.value) {
-						console.debug("Setting");
 						setPossibleItems(JSON.parse(typedData.value));
 					}
 					else {
@@ -187,7 +184,6 @@ export default function App() {
 		.sort((a, b) => {
 			const categoryA = a.category || "Unknown";
 			const categoryB = b.category || "Unknown";
-			console.debug("categoryA", categoryA);
 			return sortOrder.indexOf(categoryA) - sortOrder.indexOf(categoryB);
 		})
 		.map((item) => item.name);

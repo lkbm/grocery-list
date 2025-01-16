@@ -22,6 +22,15 @@ export default function App() {
 	const listName = window.location.hash.slice(1) || "default-list";
 	const [isRemoving, setIsRemoving] = useState(false);
 
+	useEffect(() => {
+		const timeoutId = setTimeout(() => {
+			console.debug("Auto-saving currentList", currentList);
+			saveList();
+		}, 5000);
+
+		return () => clearTimeout(timeoutId);
+	}, [currentList]);
+
 	// Set as a list of Items:
 	const DEFAULT_LIST = JSON.stringify([
 		{ name: 'Dragonfruit', status: "need", category: "produce"},

@@ -1,8 +1,8 @@
 import React, { useState, useEffect } from 'react';
 
 // TODO: Manual Sorting
-// TODO: Add as "category" buttons for Custom items. Maybe a button for each category
 // TODO: Save on edit, debounced
+// TODO: Save button success should provide feedback
 // TODO: Better caching?
 
 export interface Item {
@@ -166,10 +166,10 @@ export default function App() {
 		setCurrentList(updatedList);
 	};
 
-	const addItemByName = (itemName: string) => {
+	const addItemByName = (itemName: string, category?: string) => {
 		const newItems = [...currentList];
-		const category = (itemName in DEFAULT_POSSIBLE_ITEMS) ? DEFAULT_POSSIBLE_ITEMS[itemName as keyof typeof DEFAULT_POSSIBLE_ITEMS] : "Unknown";
-		newItems.push({ name: itemName, status: "need", category });
+		const itemCategory = category || ((itemName in DEFAULT_POSSIBLE_ITEMS) ? DEFAULT_POSSIBLE_ITEMS[itemName as keyof typeof DEFAULT_POSSIBLE_ITEMS] : "Unknown");
+		newItems.push({ name: itemName, status: "need", category: itemCategory });
 		setCurrentList(newItems);
 	};
 
@@ -241,7 +241,9 @@ export default function App() {
 					onChange={addItemByName}
 				/>
 			))}
-			<CustomItem onChange={addItemByName} />	
+			{sortOrder.map(category => (
+				<CustomItem key={category} onChange={addItemByName} category={category} />
+			))}
 		</div>
 	);
 }
@@ -283,17 +285,18 @@ const AvailableItem: React.FC<AvailableItemProps> = ({ itemName, onChange, class
 };
 
 interface CustomItemProps {
-	onChange: (itemName: string) => void;
+	onChange: (itemName: string, category?: string) => void;
+	category: string;
 }
 
-const CustomItem: React.FC<CustomItemProps> = ({ onChange }) => {
+const CustomItem: React.FC<CustomItemProps> = ({ onChange, category }) => {
 	const [isEditing, setIsEditing] = React.useState(false);
 	const [customValue, setCustomValue] = React.useState("");
 
 	const handleSubmit = (e: React.FormEvent) => {
 		e.preventDefault();
 		if (customValue.trim()) {
-			onChange(customValue.trim());
+			onChange(customValue.trim(), category);
 			setCustomValue("");
 			setIsEditing(false);
 		}
@@ -318,7 +321,7 @@ const CustomItem: React.FC<CustomItemProps> = ({ onChange }) => {
 
 	return (
 		<button onClick={() => setIsEditing(true)} className="available-item">
-			Custom
+			Custom {category}
 		</button>
 	);
 }

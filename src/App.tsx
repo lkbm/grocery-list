@@ -21,12 +21,13 @@ export default function App() {
 	const [loading, setLoading] = useState(true);
 	const listName = window.location.hash.slice(1) || "default-list";
 	const [isRemoving, setIsRemoving] = useState(false);
+	const [saving, setIsSaving] = useState(false);
 
 	useEffect(() => {
 		const timeoutId = setTimeout(() => {
 			console.debug("Auto-saving currentList", currentList);
 			saveList();
-		}, 5000);
+		}, 2000);
 
 		return () => clearTimeout(timeoutId);
 	}, [currentList]);
@@ -163,6 +164,11 @@ export default function App() {
 			headers: { 'Content-Type': 'application/json' },
 			body: JSON.stringify({ value: JSON.stringify(currentList) })
 		});
+		setIsSaving(true);
+		setTimeout(() => {
+			setIsSaving(false);
+		}, 1000);
+		
 	};
 
 	const toggleCurrentItem = (itemName: string) => {
@@ -210,9 +216,10 @@ export default function App() {
 			</button>
 			<button
 				onClick={saveList}
-				className="px-4 py-2 bg-blue-500 text-white rounded hover:bg-blue-600"
+				className={`px-4 py-2 bg-blue-500 text-white rounded hover:bg-blue-600 ${saving ? 'saving' : ''}`}
+				disabled={saving}
 			>
-				Save List
+				{saving ? `Saving` : `Save List`}
 			</button>
 			<hr />
 

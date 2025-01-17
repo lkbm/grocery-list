@@ -1,8 +1,6 @@
 import React, { useState, useEffect } from 'react';
 
 // TODO: Manual Sorting
-// TODO: Save on edit, debounced
-// TODO: Save button success should provide feedback
 // TODO: Better caching?
 
 export interface Item {

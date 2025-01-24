@@ -1,7 +1,9 @@
 import React, { useState, useEffect } from 'react';
 
-// TODO: Manual Sorting
-// TODO: Better caching?
+// TODO: Manual Sorting?
+// TODO: Better caching? https://hono.dev/docs/middleware/builtin/cache
+// Timestamp
+// Better default list?
 
 export interface Item {
 	name: string;
@@ -66,6 +68,12 @@ export default function App() {
 		"Bacon": "corner",
 		"Kielbasa": "corner",
 		
+		// Bread
+		"Bread, seaded": "bread",
+		"Bread, sourdough": "bread",
+		"Bread, rye": "bread",
+		"Fritos": "bread",
+
 		// Cans
 		"Pinto Beans": "cans",
 		"🥫Sauce": "cans",
@@ -110,9 +118,10 @@ export default function App() {
 	};
 
 	const sortOrder = [
-		"Unknown",
+		"unknown",
 		"produce",
 		"corner",
+		"bread",
 		"cans",
 		"pasta",
 		"soup",
@@ -181,7 +190,7 @@ export default function App() {
 
 	const addItemByName = (itemName: string, category?: string) => {
 		const newItems = [...currentList];
-		const itemCategory = category || ((itemName in DEFAULT_POSSIBLE_ITEMS) ? DEFAULT_POSSIBLE_ITEMS[itemName as keyof typeof DEFAULT_POSSIBLE_ITEMS] : "Unknown");
+		const itemCategory = category || ((itemName in DEFAULT_POSSIBLE_ITEMS) ? DEFAULT_POSSIBLE_ITEMS[itemName as keyof typeof DEFAULT_POSSIBLE_ITEMS] : "unknown");
 		newItems.push({ name: itemName, status: "need", category: itemCategory });
 		setCurrentList(newItems);
 	};
@@ -193,10 +202,14 @@ export default function App() {
 		setCurrentList(newItems);
 	}
 
+	const clearList = () => {
+		setCurrentList(currentList.filter(item => item.status === "need"));
+	};
+
 	let itemNamesOnList = currentList
 		.sort((a, b) => {
-			const categoryA = a.category || "Unknown";
-			const categoryB = b.category || "Unknown";
+			const categoryA = a.category || "unknown";
+			const categoryB = b.category || "unknown";
 			return sortOrder.indexOf(categoryA) - sortOrder.indexOf(categoryB);
 		})
 		.map((item) => item.name);
@@ -206,6 +219,13 @@ export default function App() {
 	if (loading) return <div>Loading......</div>;
 	return (
 		<div>
+			<button 
+				onClick={clearList}
+				className="px-4 py-2 bg-gray-500 text-white rounded hover:bg-gray-600 mb-4"
+			>
+				Clear Purchases
+			</button>
+
 			<button 
 				onClick={() => setIsRemoving(!isRemoving)}
 				className="px-4 py-2 bg-gray-500 text-white rounded hover:bg-gray-600 mb-4"
@@ -224,13 +244,20 @@ export default function App() {
 			{!isRemoving ? (
 				<>
 					<h2>Current List</h2>
-					{currentList.map((item) => (
-						<ListItem
-							key={item.name}
-							item={item}
-							currentValue={item.status === "carted"}
-							toggleCurrentItems={toggleCurrentItem}
-						/>
+					{sortOrder.map(category => (
+						<>
+							{currentList
+								.filter(item => (item.category || "unknown") === category)
+								.map((item, idx) => (
+									<ListItem
+									 	firstInCategory={idx === 0}
+										key={item.name}
+										item={item}
+										currentValue={item.status === "carted"}
+										toggleCurrentItems={toggleCurrentItem}
+									/>
+								))}
+						</>
 					))}
 				</>
 			) : (
@@ -248,15 +275,16 @@ export default function App() {
 			)}
 			<hr />
 			<h2>Add to List</h2>
+			{sortOrder.map(category => (
+				<CustomItem key={category} onChange={addItemByName} category={category} />
+			))}
+			<h3>Basic items</h3>
 			{availableToAdd.map((itemName) => (
 				<AvailableItem
 					key={`available-${itemName}`}
 					itemName={itemName}
 					onChange={addItemByName}
 				/>
-			))}
-			{sortOrder.map(category => (
-				<CustomItem key={category} onChange={addItemByName} category={category} />
 			))}
 		</div>
 	);
@@ -266,11 +294,13 @@ interface ListItemProps {
 	item: Item;
 	currentValue: boolean;
 	toggleCurrentItems: (itemName: string) => void;
+	firstInCategory?: boolean;
 }
 
-const ListItem: React.FC<ListItemProps> = ({item , currentValue, toggleCurrentItems }) => {
+const ListItem: React.FC<ListItemProps> = ({item , currentValue, toggleCurrentItems, firstInCategory }) => {
 	return (
 		<div>
+			{firstInCategory ? <h3>{item.category}</h3> : ''}
 			<input
 				type="checkbox"
 				checked={currentValue}
@@ -291,8 +321,19 @@ interface AvailableItemProps {
 
 
 const AvailableItem: React.FC<AvailableItemProps> = ({ itemName, onChange, className = "" }) => {
+	const [isRemoving, setIsRemoving] = React.useState(false);
+
+	const handleClick = () => {
+		setIsRemoving(true);
+		// Wait for animation to complete before calling onChange
+		setTimeout(() => {
+			onChange(itemName);
+		}, 100); // matches transition duration
+	};
+
+
 	return (
-		<button onClick={() => onChange(itemName)} className={`available-item ${className}`}>
+		<button onClick={handleClick} className={`available-item ${className} ${isRemoving ? 'removing' : ''}`}>
 			{itemName}
 		</button>
 	);
@@ -334,8 +375,8 @@ const CustomItem: React.FC<CustomItemProps> = ({ onChange, category }) => {
 	}
 
 	return (
-		<button onClick={() => setIsEditing(true)} className="available-item">
-			Custom {category}
+		<button onClick={() => setIsEditing(true)} className="available-item custom">
+			{category}
 		</button>
 	);
 }

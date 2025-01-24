@@ -1,53 +1,26 @@
 /* Inline CSS */
-:root {
-  font-family: Inter, system-ui, Avenir, Helvetica, Arial, sans-serif;
-  line-height: 1.5;
-  font-weight: 400;
-
-  color-scheme: light dark;
-  color: rgba(255, 255, 255, 0.87);
-  background-color: #242424;
-
-  font-synthesis: none;
-  text-rendering: optimizeLegibility;
-  -webkit-font-smoothing: antialiased;
-  -moz-osx-font-smoothing: grayscale;
-}
-
-a {
-  font-weight: 500;
-  color: #646cff;
-  text-decoration: inherit;
-}
-a:hover {
-  color: #535bf2;
-}
-
-body {
-  margin: 0;
-  display: flex;
-  place-items: center;
-  min-width: 320px;
-  min-height: 100vh;
-}
-
-h1 {
-  font-size: 3.2em;
-  line-height: 1.1;
-}
-
 button, label {
+  border: 1px solid #c0c0c0;
   border-radius: 8px;
-  border: 1px solid transparent;
   font-size: 1em;
   font-weight: 500;
-  font-family: inherit;
+  font-family: sans-serif;
   cursor: pointer;
   transition: border-color 0.25s;
   background: #c0c0c0;
-  border: 1px solid #c0c0c0;
-  vertical-align: middle
+  float: left;
+  width: min(12em, calc(100vw/2 - 0.8em));
+  box-sizing: border-box;
+  text-align: center;
+  margin: 5px;
+  color: black;
+  height: 5em;
+
+  align-items: center;
+  display: flex;
+  justify-content: center;
 }
+
 button:hover, label:hover {
   border-color: #646cff;
 }
@@ -55,6 +28,54 @@ button:focus,
 button:focus-visible, label:focus, label:focus-visible {
   outline: 4px auto -webkit-focus-ring-color;
 }
+
+
+/* The checkbox is hidden, but the label is styled to look like a checkbox */
+input[type="checkbox"] {
+  display: none;
+}
+
+/* first character of label very big: */
+/* label::first-letter {
+  font-size: 3em;
+} */
+/* When the checkbox is checked, the label is styled to look like a checked checkbox */
+input[type="checkbox"]:checked + label {
+  background-color: yellow;
+  color: black;
+}
+hr { clear: both; }
+
+.removable-item {
+  background: #ffcccc;
+  border: 8px solid #ffcccc;
+}
+.carted {
+  background: #ffffcc;
+}
+.saving {
+  background: #00f000;
+}
+.available-item {
+  opacity: 1;
+  transition: opacity 100ms ease-out;
+}
+
+.available-item.removing {
+  opacity: 0;
+}
+
+h3 { clear: both; }
+
+.custom::first-letter { text-transform: uppercase; }
+
+input[type=text] {
+  height: 32px;
+  font-size: 16px;
+  width: min(12em, calc(100vw/2 - 0.8em));
+  border-radius: 4px;
+}
+
 
 @media (prefers-color-scheme: light) {
   :root {

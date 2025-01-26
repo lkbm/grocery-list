@@ -162,19 +162,19 @@ const DEFAULT_POSSIBLE_ITEMS = [
 	},
 	{
 		"name": "Hot Chocolate",
-		"category": "drinks"
+		"category": "coffee and tea"
 	},
 	{
 		"name": "White Hot Chocolate",
-		"category": "drinks"
+		"category": "coffee and tea"
 	},
 	{
 		"name": "Green Tea",
-		"category": "drinks"
+		"category": "coffee and tea"
 	},
 	{
 		"name": "Peppermint Tea",
-		"category": "drinks"
+		"category": "coffee and tea"
 	},
 	{
 		"name": "Chocolate Soy Milk",
@@ -242,7 +242,7 @@ const sortOrder = [
 	"cans",
 	"pasta",
 	"soup",
-	"drinks",
+	"coffee and tea",
 	"eggs/dairy",
 	"soda",
 	"frozen",
@@ -497,8 +497,6 @@ const CustomItem: React.FC<CustomItemProps> = memo(({ onChange, category }) => {
 	}
 
 	return (
-		<button onClick={() => setIsEditing(true)} className="available-item custom">
-			{category}
-		</button>
+		<button onClick={() => setIsEditing(true)} className="available-item custom">{category}</button>
 	);
 });

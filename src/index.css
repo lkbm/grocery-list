@@ -3,7 +3,6 @@ button, label {
   border: 1px solid #c0c0c0;
   border-radius: 8px;
   font-size: 1em;
-  font-weight: 500;
   font-family: sans-serif;
   cursor: pointer;
   transition: border-color 0.25s;
@@ -13,9 +12,7 @@ button, label {
   box-sizing: border-box;
   text-align: center;
   margin: 5px;
-  color: black;
   height: 5em;
-
   align-items: center;
   display: flex;
   justify-content: center;
@@ -39,35 +36,39 @@ input[type="checkbox"] {
 /* label::first-letter {
   font-size: 3em;
 } */
-/* When the checkbox is checked, the label is styled to look like a checked checkbox */
+/* When the checkbox is checked, the label is highlighted */
 input[type="checkbox"]:checked + label {
-  background-color: yellow;
-  color: black;
+  background: #ffffc0;
 }
 hr { clear: both; }
 
-.removable-item {
-  background: #ffcccc;
-  border: 8px solid #ffcccc;
-}
-.carted {
-  background: #ffffcc;
-}
 .saving {
   background: #00f000;
 }
-.available-item {
+
+.removable-item {
+  border: 8px solid #ffcccc;
+}
+.carted {
+  background: #ffffc0;
+}
+
+.available-item:not(.carted):not(.removable-item) {
   opacity: 1;
   transition: opacity 100ms ease-out;
+  background-color: #ddf0dd;
 }
 
 .available-item.removing {
-  opacity: 0;
+  opacity: 0 ! important;
+  height: 0 ! important;
+  width: 0 ! important;
+  font-size: 1px ! important;
 }
 
 h3 { clear: both; }
 
-.custom::first-letter { text-transform: uppercase; }
+.custom { text-transform: capitalize; }
 
 input[type=text] {
   height: 32px;

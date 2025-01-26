@@ -1,3 +1,10 @@
+# Luca's Notes
+vite creates
+tsconfig.app.json for the web app
+tsconfig.node.json for the server-side code
+
+We've told it to substiture preact for react.
+
 # React + TypeScript + Vite
 
 This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.

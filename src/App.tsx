@@ -4,6 +4,7 @@ import React, { useState, useEffect } from 'react';
 // TODO: Better caching? https://hono.dev/docs/middleware/builtin/cache
 // Timestamp
 // Better default list?
+// Gird layout?
 
 export interface Item {
 	name: string;

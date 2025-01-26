@@ -1,12 +1,14 @@
 import { defineConfig } from "vite";
 import react from "@vitejs/plugin-react";
+import { visualizer } from "rollup-plugin-visualizer";
 
 export default defineConfig({
-	plugins: [react()],
+	plugins: [react(), visualizer({ open: true, filename: "bundle-visualization.html" })],
 	base: "/",
 	build: {
 		outDir: "dist",
 		rollupOptions: {
+			treeshake: true,
 			input: "index.html",
 			output: {
 				// Handle JS entry chunks

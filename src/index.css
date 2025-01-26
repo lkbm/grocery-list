@@ -9,7 +9,7 @@ button, label {
   transition: border-color 0.25s;
   background: #c0c0c0;
   float: left;
-  width: min(12em, calc(100vw/2 - 0.8em));
+  width: max(min(20em, calc(100vw/2 - 1.2em)), 8em);
   box-sizing: border-box;
   text-align: center;
   margin: 5px;

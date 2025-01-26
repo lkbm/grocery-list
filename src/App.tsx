@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect } from 'preact/compat';
 
 // TODO: Manual Sorting?
 // TODO: Better caching? https://hono.dev/docs/middleware/builtin/cache
@@ -364,7 +364,7 @@ const CustomItem: React.FC<CustomItemProps> = ({ onChange, category }) => {
 				<input
 					type="text"
 					value={customValue}
-					onChange={(e) => setCustomValue(e.target.value)}
+					onChange={(e) => setCustomValue((e.target as HTMLInputElement)?.value)}
 					placeholder="Enter custom item"
 					autoFocus
 				/>

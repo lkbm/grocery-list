@@ -1,10 +1,16 @@
 import { defineConfig } from "vite";
-import react from "@vitejs/plugin-react";
+import preact from "@preact/preset-vite";
 import { visualizer } from "rollup-plugin-visualizer";
 
 export default defineConfig({
-	plugins: [react(), visualizer({ open: true, filename: "bundle-visualization.html" })],
+	plugins: [preact(), visualizer({ open: true, filename: "bundle-visualization.html" })],
 	base: "/",
+	resolve: {
+		alias: {
+			react: "preact/compat",
+			"react-dom": "preact/compat",
+		},
+	},
 	build: {
 		outDir: "dist",
 		rollupOptions: {

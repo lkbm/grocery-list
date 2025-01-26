@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'preact/compat';
+import React, { memo, useMemo, useState, useEffect } from 'preact/compat';
 
 // TODO: Manual Sorting?
 // TODO: Better caching? https://hono.dev/docs/middleware/builtin/cache
@@ -8,7 +8,7 @@ import React, { useState, useEffect } from 'preact/compat';
 
 export interface Item {
 	name: string;
-	status: string;
+	status?: string;
 	category?: string;
 };
 
@@ -17,13 +17,280 @@ export interface Data {
 }
 
 
+const DEFAULT_LIST = "[]";
+
+const DEFAULT_POSSIBLE_ITEMS = [
+	{
+		"name": "Tomato, small",
+		"category": "produce"
+	},
+	{
+		"name": "Tomato, big",
+		"category": "produce"
+	},
+	{
+		"name": "🌶️Jalapeno",
+		"category": "produce"
+	},
+	{
+		"name": "🟥🫑",
+		"category": "produce"
+	},
+	{
+		"name": "🍄‍🟫",
+		"category": "produce"
+	},
+	{
+		"name": "Spinach",
+		"category": "produce"
+	},
+	{
+		"name": "Brocolli",
+		"category": "produce"
+	},
+	{
+		"name": "Fresh basil",
+		"category": "produce"
+	},
+	{
+		"name": "🍒",
+		"category": "produce"
+	},
+	{
+		"name": "🍓",
+		"category": "produce"
+	},
+	{
+		"name": "Raspberries",
+		"category": "produce"
+	},
+	{
+		"name": "Blueberries",
+		"category": "produce"
+	},
+	{
+		"name": "⭐️fruit",
+		"category": "produce"
+	},
+	{
+		"name": "🐉fruit",
+		"category": "produce"
+	},
+	{
+		"name": "Oranges",
+		"category": "produce"
+	},
+	{
+		"name": "Brie",
+		"category": "corner"
+	},
+	{
+		"name": "Fresh Mozarella",
+		"category": "corner"
+	},
+	{
+		"name": "🌽🌯",
+		"category": "corner"
+	},
+	{
+		"name": "🌾🌯",
+		"category": "corner"
+	},
+	{
+		"name": "Bacon",
+		"category": "corner"
+	},
+	{
+		"name": "Kielbasa",
+		"category": "corner"
+	},
+	{
+		"name": "Bread, seaded",
+		"category": "bread"
+	},
+	{
+		"name": "Bread, sourdough",
+		"category": "bread"
+	},
+	{
+		"name": "Bread, rye",
+		"category": "bread"
+	},
+	{
+		"name": "Fritos",
+		"category": "bread"
+	},
+	{
+		"name": "Pinto Beans",
+		"category": "cans"
+	},
+	{
+		"name": "🥫Sauce",
+		"category": "cans"
+	},
+	{
+		"name": "🥫Whole",
+		"category": "cans"
+	},
+	{
+		"name": "🥫Diced",
+		"category": "cans"
+	},
+	{
+		"name": "🥫Paste",
+		"category": "cans"
+	},
+	{
+		"name": "🥫Puree",
+		"category": "cans"
+	},
+	{
+		"name": "Manicotti",
+		"category": "pasta"
+	},
+	{
+		"name": "Spaghetti",
+		"category": "pasta"
+	},
+	{
+		"name": "Spaghetti, GF",
+		"category": "pasta"
+	},
+	{
+		"name": "Brocolli Cheddar soup",
+		"category": "soup"
+	},
+	{
+		"name": "Hot Chocolate",
+		"category": "drinks"
+	},
+	{
+		"name": "White Hot Chocolate",
+		"category": "drinks"
+	},
+	{
+		"name": "Green Tea",
+		"category": "drinks"
+	},
+	{
+		"name": "Peppermint Tea",
+		"category": "drinks"
+	},
+	{
+		"name": "Chocolate Soy Milk",
+		"category": "eggs/dairy"
+	},
+	{
+		"name": "🥚",
+		"category": "eggs/dairy"
+	},
+	{
+		"name": "🧀 Moz",
+		"category": "eggs/dairy"
+	},
+	{
+		"name": "🧀 Ched",
+		"category": "eggs/dairy"
+	},
+	{
+		"name": "🧀 Ricotta",
+		"category": "eggs/dairy"
+	},
+	{
+		"name": "DDP",
+		"category": "soda"
+	},
+	{
+		"name": "CF Diet Coke",
+		"category": "soda"
+	},
+	{
+		"name": "Sm. CF Diet Coke",
+		"category": "soda"
+	},
+	{
+		"name": "Beyond Meat Sausage",
+		"category": "frozen"
+	},
+	{
+		"name": "Morningstar Sausage",
+		"category": "frozen"
+	},
+	{
+		"name": "Impossible Beef",
+		"category": "frozen"
+	},
+	{
+		"name": "🍨LM",
+		"category": "frozen"
+	},
+	{
+		"name": "🍨🥜",
+		"category": "frozen"
+	},
+	{
+		"name": "🍨Dulce",
+		"category": "frozen"
+	}
+]
+
+const sortOrder = [
+	"unknown",
+	"produce",
+	"corner",
+	"bread",
+	"cans",
+	"pasta",
+	"soup",
+	"drinks",
+	"eggs/dairy",
+	"soda",
+	"frozen",
+];
+
 export default function App() {
 	const [currentList, setCurrentList] = useState<Item[]>([]);
-	const [loading, setLoading] = useState(true);
+	const [possibleItems, setPossibleItems] = useState<Item[]>([]);
+	const [isLoading, setIsLoading] = useState<boolean>(true);
+	const [isRemoving, setIsRemoving] = useState<boolean>(false);
+	const [isSaving, setIsSaving] = useState<boolean>(false);
 	const listName = window.location.hash.slice(1) || "default-list";
-	const [isRemoving, setIsRemoving] = useState(false);
-	const [saving, setIsSaving] = useState(false);
 
+	// Load initial state:
+	useEffect(() => {
+		// Load initial state
+		fetch(`/api/state/${listName}`)
+			.then(res => res.json().catch(() => ({ value: DEFAULT_LIST })))
+			.then(data => {
+				const typedData = data as Data;
+				try {
+					// LKBM TODO: Handle bad format (e.g., because I changed format):
+					if (typedData.value) setCurrentList(JSON.parse(typedData.value));
+				} catch {
+					setCurrentList(JSON.parse(DEFAULT_LIST));
+				}
+				// setIsLoading(false);
+			});
+			fetch(`/api/state/${listName}-options`)
+			.then(res => res.json().catch(() => ({ value: JSON.stringify(DEFAULT_POSSIBLE_ITEMS) })))
+			.then(data => {
+				const typedData = data as Data;
+				try {
+					if (typedData.value) {
+						// LKBM TODO: Handle bad format (e.g., because I changed format):
+						setPossibleItems(JSON.parse(typedData.value));
+					}
+					else {
+						setPossibleItems(DEFAULT_POSSIBLE_ITEMS);
+					}
+				} catch {
+					setPossibleItems(DEFAULT_POSSIBLE_ITEMS);
+				}
+				setIsLoading(false);
+			});
+	}, []);
+
+	// Auto-save when list changes:
 	useEffect(() => {
 		const timeoutId = setTimeout(() => {
 			console.debug("Auto-saving currentList", currentList);
@@ -32,139 +299,6 @@ export default function App() {
 
 		return () => clearTimeout(timeoutId);
 	}, [currentList]);
-
-	// Set as a list of Items:
-	const DEFAULT_LIST = JSON.stringify([
-		{ name: 'Dragonfruit', status: "need", category: "produce"},
-		{ name: 'Oranges', status: "need", category: "produce"},
-		{ name: 'DDP', status: "need", category: "soda" },
-		{ name: 'CF Diet Coke', status: "need", category: "soda" },
-		{ name: 'Egg', status: "need", category: "eggs/dairy" },
-	]);
-
-	// TODO: Make "possible items" also a kv
-	const DEFAULT_POSSIBLE_ITEMS = {
-		// Produce
-		"Tomato, small": "produce",
-		"Tomato, big": "produce",
-		"🌶️Jalapeno": "produce",
-		"🟥🫑": "produce",
-		"🍄‍🟫": "produce",
-		"Spinach": "produce",
-		"Brocolli": "produce",
-		"Fresh basil": "produce",
-		"🍒": "produce",
-		"🍓": "produce",
-		"Raspberries": "produce",
-		"Blueberries": "produce",
-		"⭐️fruit": "produce",
-		"🐉fruit": "produce",
-		"Oranges": "produce",
-		
-		// Corner
-		"Brie": "corner",
-		"Fresh Mozarella": "corner",
-		"🌽🌯": "corner",
-		"🌾🌯": "corner",
-		"Bacon": "corner",
-		"Kielbasa": "corner",
-		
-		// Bread
-		"Bread, seaded": "bread",
-		"Bread, sourdough": "bread",
-		"Bread, rye": "bread",
-		"Fritos": "bread",
-
-		// Cans
-		"Pinto Beans": "cans",
-		"🥫Sauce": "cans",
-		"🥫Whole": "cans",
-		"🥫Diced": "cans",
-		"🥫Paste": "cans",
-		"🥫Puree": "cans",
-		
-		// Pasta
-		"Manicotti": "pasta",
-		"Spaghetti": "pasta",
-		"Spaghetti, GF": "pasta",
-		
-		// Soup
-		"Brocolli Cheddar soup": "soup",
-
-		// Drinks
-		"Hot Chocolate": "drinks",
-		"White Hot Chocolate": "drinks",
-		"Green Tea": "drinks",
-		"Peppermint Tea": "drinks",
-
-		// Egg/Dairy:
-		"Chocolate Soy Milk": "eggs/dairy",
-		"🥚": "eggs/dairy",
-		"🧀 Moz": "eggs/dairy",
-		"🧀 Ched": "eggs/dairy",
-		"🧀 Ricotta": "eggs/dairy",
-
-		// Soda:
-		"DDP": "soda",
-		"CF Diet Coke": "soda",
-		"Sm. CF Diet Coke": "soda",
-
-		// Frozen
-		"Beyond Meat Sausage": "frozen",
-		"Morningstar Sausage": "frozen",
-		"Impossible Beef": "frozen",
-		"🍨LM": "frozen",
-		"🍨🥜": "frozen",
-		"🍨Dulce": "frozen",
-	};
-
-	const sortOrder = [
-		"unknown",
-		"produce",
-		"corner",
-		"bread",
-		"cans",
-		"pasta",
-		"soup",
-		"drinks",
-		"eggs/dairy",
-		"soda",
-		"frozen",
-	];
-
-	const [POSSIBLE_ITEMS, setPossibleItems] = useState<string[]>([]);
-
-	useEffect(() => {
-		// Load initial state
-		fetch(`/api/state/${listName}`)
-			.then(res => res.json().catch(() => ({ value: DEFAULT_LIST })))
-			.then(data => {
-				const typedData = data as Data;
-				try {
-					if (typedData.value) setCurrentList(JSON.parse(typedData.value));
-				} catch {
-					setCurrentList(JSON.parse(DEFAULT_LIST));
-				}
-				setLoading(false);
-			});
-		fetch(`/api/state/${listName}-options`)
-			.then(res => res.json().catch(() => ({ value: JSON.stringify(Object.keys(DEFAULT_POSSIBLE_ITEMS)) })))
-			.then(data => {
-				// TODO: This is untested.
-				const typedData = data as Data;
-				try {
-					if (typedData.value) {
-						setPossibleItems(JSON.parse(typedData.value));
-					}
-					else {
-						setPossibleItems(Object.keys(DEFAULT_POSSIBLE_ITEMS));
-					}
-				} catch {
-					setPossibleItems(Object.keys(DEFAULT_POSSIBLE_ITEMS));
-				}
-				setLoading(false);
-			});
-	}, []);
 
 	const saveList = async () => {
 		await fetch(`/api/state/${listName}`, {
@@ -191,7 +325,7 @@ export default function App() {
 
 	const addItemByName = (itemName: string, category?: string) => {
 		const newItems = [...currentList];
-		const itemCategory = category || ((itemName in DEFAULT_POSSIBLE_ITEMS) ? DEFAULT_POSSIBLE_ITEMS[itemName as keyof typeof DEFAULT_POSSIBLE_ITEMS] : "unknown");
+		const itemCategory = category;
 		newItems.push({ name: itemName, status: "need", category: itemCategory });
 		setCurrentList(newItems);
 	};
@@ -207,83 +341,70 @@ export default function App() {
 		setCurrentList(currentList.filter(item => item.status === "need"));
 	};
 
-	let itemNamesOnList = currentList
-		.sort((a, b) => {
+	let itemNamesOnList = currentList.map((item) => item.name);
+	const availableToAdd = useMemo(() => {
+		const result = possibleItems.filter((item) => !itemNamesOnList.includes(item.name))		.sort((a, b) => {
 			const categoryA = a.category || "unknown";
 			const categoryB = b.category || "unknown";
 			return sortOrder.indexOf(categoryA) - sortOrder.indexOf(categoryB);
-		})
-		.map((item) => item.name);
+		});
+		return result;
+	}, [possibleItems, itemNamesOnList]);
 
-	const availableToAdd = POSSIBLE_ITEMS.filter((item) => !itemNamesOnList.includes(item));
-
-	if (loading) return <div>Loading......</div>;
+	if (isLoading) return <div>Loading...</div>;
 	return (
 		<div>
-			<button 
-				onClick={clearList}
-				className="px-4 py-2 bg-gray-500 text-white rounded hover:bg-gray-600 mb-4"
-			>
+			<button onClick={clearList}>
 				Clear Purchases
 			</button>
 
-			<button 
-				onClick={() => setIsRemoving(!isRemoving)}
-				className="px-4 py-2 bg-gray-500 text-white rounded hover:bg-gray-600 mb-4"
+			<button onClick={() => setIsRemoving(!isRemoving)}
 			>
 				{isRemoving ? "Done Removing" : "Remove Items"}
 			</button>
 			<button
 				onClick={saveList}
-				className={`px-4 py-2 bg-blue-500 text-white rounded hover:bg-blue-600 ${saving ? 'saving' : ''}`}
-				disabled={saving}
+				className={isSaving ? 'saving' : ''}
+				disabled={isSaving}
 			>
-				{saving ? `Saving` : `Save List`}
+				{isSaving ? `Saving` : `Save List`}
 			</button>
 			<hr />
-
-			{!isRemoving ? (
+			<h2>{isRemoving && "Remove From "}Current List</h2>
+			{sortOrder.map(category => (
 				<>
-					<h2>Current List</h2>
-					{sortOrder.map(category => (
-						<>
-							{currentList
-								.filter(item => (item.category || "unknown") === category)
-								.map((item, idx) => (
-									<ListItem
-									 	firstInCategory={idx === 0}
-										key={item.name}
-										item={item}
-										currentValue={item.status === "carted"}
-										toggleCurrentItems={toggleCurrentItem}
-									/>
-								))}
+					{currentList
+						.filter(item => (item.category || "unknown") === category)
+						.map((item, idx) => (
+							<>
+							{idx === 0 && <h3>{category}</h3>}
+							{isRemoving ? <AvailableItem
+								key={item.name}
+								item={item}
+								onChange={removeItemByName}
+								className={`removable-item ${item.status}`}
+							/>
+								: <ListItem
+									key={item.name}
+									item={item}
+									currentValue={item.status === "carted"}
+									toggleCurrentItems={toggleCurrentItem}
+							/>}
 						</>
-					))}
+						))
+					}
 				</>
-			) : (
-				<>
-					<h2>Remove from List</h2>
-					{currentList.map((item) => (
-						<AvailableItem
-							key={item.name}
-							itemName={item.name}
-							onChange={removeItemByName}
-							className={`removable-item ${item.status}`}
-						/>
-					))}
-				</>
-			)}
+			))}
 			<hr />
 			<h2>Add to List</h2>
 			{sortOrder.map(category => (
 				<CustomItem key={category} onChange={addItemByName} category={category} />
 			))}
-			<h3>Basic items</h3>
-			{availableToAdd.map((itemName) => (
+			<h3>Standard items</h3>
+			{availableToAdd.map((item) => (
 				<AvailableItem
-					key={`available-${itemName}`}
-					itemName={itemName}
+					key={`available-${item.name}`}
+					item={item}
 					onChange={addItemByName}
 				/>
 			))}
@@ -292,16 +413,14 @@ export default function App() {
 }
 
 interface ListItemProps {
-	item: Item;
-	currentValue: boolean;
 	toggleCurrentItems: (itemName: string) => void;
-	firstInCategory?: boolean;
+	currentValue: boolean;
+	item: Item;
 }
 
-const ListItem: React.FC<ListItemProps> = ({item , currentValue, toggleCurrentItems, firstInCategory }) => {
+const ListItem: React.FC<ListItemProps> = ({item , currentValue, toggleCurrentItems }) => {
 	return (
 		<div>
-			{firstInCategory ? <h3>{item.category}</h3> : ''}
 			<input
 				type="checkbox"
 				checked={currentValue}
@@ -315,28 +434,30 @@ const ListItem: React.FC<ListItemProps> = ({item , currentValue, toggleCurrentIt
 };
 
 interface AvailableItemProps {
-	itemName: string;
-	onChange: (itemName: string) => void;
+	onChange: (itemName: string, category?: string) => void;
 	className?: string;
+	item: Item;
 }
 
 
-const AvailableItem: React.FC<AvailableItemProps> = ({ itemName, onChange, className = "" }) => {
+const AvailableItem: React.FC<AvailableItemProps> = ({ item, onChange, className = "" }) => {
 	const [isRemoving, setIsRemoving] = React.useState(false);
 
 	const handleClick = () => {
 		setIsRemoving(true);
 		// Wait for animation to complete before calling onChange
 		setTimeout(() => {
-			onChange(itemName);
+			onChange(item.name, item.category);
 		}, 100); // matches transition duration
 	};
 
 
 	return (
+		<>
 		<button onClick={handleClick} className={`available-item ${className} ${isRemoving ? 'removing' : ''}`}>
-			{itemName}
+			{item.name}
 		</button>
+		</>
 	);
 };
 
@@ -345,7 +466,7 @@ interface CustomItemProps {
 	category: string;
 }
 
-const CustomItem: React.FC<CustomItemProps> = ({ onChange, category }) => {
+const CustomItem: React.FC<CustomItemProps> = memo(({ onChange, category }) => {
 	const [isEditing, setIsEditing] = React.useState(false);
 	const [customValue, setCustomValue] = React.useState("");
 
@@ -380,4 +501,4 @@ const CustomItem: React.FC<CustomItemProps> = ({ onChange, category }) => {
 			{category}
 		</button>
 	);
-}
+});

@@ -46,6 +46,10 @@ hr { clear: both; }
   background: #00f000;
 }
 
+.error {
+  background: #fccccc;
+}
+
 .removable-item {
   border: 8px solid #ffcccc;
 }
@@ -73,7 +77,8 @@ h3 { clear: both; }
 input[type=text] {
   height: 32px;
   font-size: 16px;
-  width: min(12em, calc(100vw/2 - 0.8em));
+  /* width: min(12em, calc(100vw/2 - 0.8em)); */
+  width: max(min(20em, calc(100vw/2 - 1.2em)), 8em);
   border-radius: 4px;
 }
 
@@ -89,4 +94,11 @@ input[type=text] {
   button, label {
     background-color: #f9f9f9;
   }
+}
+
+.category-title {
+  float: left;
+  transform: rotate(-90deg) translateX(-3.5em);
+  margin: -.5em;
+  width: 1em;
 }

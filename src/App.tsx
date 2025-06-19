@@ -4,7 +4,9 @@ import React, { memo, useMemo, useState, useEffect } from 'preact/compat';
 // TODO: Better caching? https://hono.dev/docs/middleware/builtin/cache
 // Timestamp
 // Better default list?
-// Gird layout?
+// Add by recipe
+// Grid layout?
+// Import/export
 
 export interface Item {
 	name: string;
@@ -254,6 +256,7 @@ export default function App() {
 	const [isLoading, setIsLoading] = useState<boolean>(true);
 	const [isRemoving, setIsRemoving] = useState<boolean>(false);
 	const [isSaving, setIsSaving] = useState<boolean>(false);
+	const [isErrorSaving, setErrorSaving] = useState<boolean>(false);
 	const listName = window.location.hash.slice(1) || "default-list";
 
 	// Load initial state:
@@ -269,7 +272,6 @@ export default function App() {
 				} catch {
 					setCurrentList(JSON.parse(DEFAULT_LIST));
 				}
-				// setIsLoading(false);
 			});
 			fetch(`/api/state/${listName}-options`)
 			.then(res => res.json().catch(() => ({ value: JSON.stringify(DEFAULT_POSSIBLE_ITEMS) })))
@@ -301,15 +303,21 @@ export default function App() {
 	}, [currentList]);
 
 	const saveList = async () => {
+		setIsSaving(true);
+		setErrorSaving(false);
 		await fetch(`/api/state/${listName}`, {
 			method: 'PUT',
 			headers: { 'Content-Type': 'application/json' },
 			body: JSON.stringify({ value: JSON.stringify(currentList) })
+		}).then(response => {
+			if (!response.ok) {
+				console.error(`Error: ${response.status}`);
+				setErrorSaving(true);
+			}
+			setTimeout(() => {
+				setIsSaving(false);
+			}, 1000);
 		});
-		setIsSaving(true);
-		setTimeout(() => {
-			setIsSaving(false);
-		}, 1000);
 		
 	};
 
@@ -343,7 +351,7 @@ export default function App() {
 
 	let itemNamesOnList = currentList.map((item) => item.name);
 	const availableToAdd = useMemo(() => {
-		const result = possibleItems.filter((item) => !itemNamesOnList.includes(item.name))		.sort((a, b) => {
+		const result = possibleItems.filter((item) => !itemNamesOnList.includes(item.name)).sort((a, b) => {
 			const categoryA = a.category || "unknown";
 			const categoryB = b.category || "unknown";
 			return sortOrder.indexOf(categoryA) - sortOrder.indexOf(categoryB);
@@ -364,10 +372,10 @@ export default function App() {
 			</button>
 			<button
 				onClick={saveList}
-				className={isSaving ? 'saving' : ''}
+				className={isSaving ? 'saving' : isErrorSaving ? 'error' : ''}
 				disabled={isSaving}
 			>
-				{isSaving ? `Saving` : `Save List`}
+				{isSaving ? `Saving` : isErrorSaving ? `Error Saving!` : `Save List`}
 			</button>
 			<hr />
 			<h2>{isRemoving && "Remove From "}Current List</h2>
@@ -377,7 +385,7 @@ export default function App() {
 						.filter(item => (item.category || "unknown") === category)
 						.map((item, idx) => (
 							<>
-							{idx === 0 && <h3>{category}</h3>}
+							{idx === 0 && <h3 className={`category-title`}>{category}</h3>}
 							{isRemoving ? <AvailableItem
 								key={item.name}
 								item={item}
@@ -486,7 +494,7 @@ const CustomItem: React.FC<CustomItemProps> = memo(({ onChange, category }) => {
 					type="text"
 					value={customValue}
 					onChange={(e) => setCustomValue((e.target as HTMLInputElement)?.value)}
-					placeholder="Enter custom item"
+					placeholder={`Enter custom ${category}`}
 					autoFocus
 				/>
 				<button type="button" onClick={() => setIsEditing(false)}>

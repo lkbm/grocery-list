@@ -12,6 +12,10 @@ export interface Item {
 	name: string;
 	status?: string;
 	category?: string;
+	dateAdded?: string;      // ISO string
+	lastUpdated?: string;    // ISO string
+	deleted?: boolean;
+	deletedAt?: string;      // ISO string
 };
 
 export interface Data {
@@ -20,6 +24,8 @@ export interface Data {
 
 
 const DEFAULT_LIST = "[]";
+
+const DEFAULT_DATE = "2025-01-01T00:00:00Z";
 
 const DEFAULT_POSSIBLE_ITEMS = [
 	{
@@ -250,6 +256,15 @@ const sortOrder = [
 	"frozen",
 ];
 
+// Utility: Compute the latest lastUpdated timestamp from a list of items
+function getListLastUpdated(items: Item[]): string {
+	if (!items.length) return "1970-01-01T00:00:00Z";
+	return items.reduce((max, item) => {
+		const t = item.lastUpdated || "1970-01-01T00:00:00Z";
+		return t > max ? t : max;
+	}, "1970-01-01T00:00:00Z");
+}
+
 export default function App() {
 	const [currentList, setCurrentList] = useState<Item[]>([]);
 	const [possibleItems, setPossibleItems] = useState<Item[]>([]);
@@ -257,6 +272,7 @@ export default function App() {
 	const [isRemoving, setIsRemoving] = useState<boolean>(false);
 	const [isSaving, setIsSaving] = useState<boolean>(false);
 	const [isErrorSaving, setErrorSaving] = useState<boolean>(false);
+	const [mergeError, setMergeError] = useState<string | null>(null);
 	const listName = window.location.hash.slice(1) || "default-list";
 
 	// Load initial state:
@@ -267,8 +283,14 @@ export default function App() {
 			.then(data => {
 				const typedData = data as Data;
 				try {
-					// LKBM TODO: Handle bad format (e.g., because I changed format):
-					if (typedData.value) setCurrentList(JSON.parse(typedData.value));
+					let loadedList = typedData.value ? JSON.parse(typedData.value) : [];
+					// Add dateAdded/lastUpdated for legacy items
+					loadedList = loadedList.map((item: Item) => ({
+						...item,
+						dateAdded: item.dateAdded || DEFAULT_DATE,
+						lastUpdated: item.lastUpdated || DEFAULT_DATE,
+					}));
+					setCurrentList(loadedList);
 				} catch {
 					setCurrentList(JSON.parse(DEFAULT_LIST));
 				}
@@ -305,26 +327,50 @@ export default function App() {
 	const saveList = async () => {
 		setIsSaving(true);
 		setErrorSaving(false);
-		await fetch(`/api/state/${listName}`, {
-			method: 'PUT',
-			headers: { 'Content-Type': 'application/json' },
-			body: JSON.stringify({ value: JSON.stringify(currentList) })
-		}).then(response => {
-			if (!response.ok) {
-				console.error(`Error: ${response.status}`);
-				setErrorSaving(true);
-			}
-			setTimeout(() => {
+		setMergeError(null);
+
+		try {
+			// Fetch server's current list
+			const res = await fetch(`/api/state/${listName}`);
+			const data = await res.json().catch(() => ({ value: DEFAULT_LIST }));
+			const typedData = data as Data;
+			const serverList: Item[] = typedData.value ? JSON.parse(typedData.value) : [];
+			const serverLastUpdated = getListLastUpdated(serverList);
+			const localLastUpdated = getListLastUpdated(currentList);
+
+			if (localLastUpdated >= serverLastUpdated) {
+				// Local is newer or equal, proceed to save
+				await fetch(`/api/state/${listName}`, {
+					method: 'PUT',
+					headers: { 'Content-Type': 'application/json' },
+					body: JSON.stringify({ value: JSON.stringify(currentList) })
+				}).then(response => {
+					if (!response.ok) {
+						console.error(`Error: ${response.status}`);
+						setErrorSaving(true);
+					}
+					setTimeout(() => {
+						setIsSaving(false);
+					}, 1000);
+				});
+			} else {
+				// Server is newer, do not overwrite
+				setMergeError("Server list is newer. Please refresh or merge changes.");
 				setIsSaving(false);
-			}, 1000);
-		});
-		
+			}
+		} catch (err) {
+			console.error("Save error", err);
+			setErrorSaving(true);
+			setIsSaving(false);
+		}
 	};
 
 	const toggleCurrentItem = (itemName: string) => {
+		const now = new Date().toISOString();
 		const updatedList = currentList.map((item) => {
-			if (item.name === itemName) {
-				item.status = item.status === "need" ? "carted" : "need";
+			if (item.name === itemName && !item.deleted) {
+				const newStatus = item.status === "need" ? "carted" : "need";
+				return { ...item, status: newStatus, lastUpdated: now };
 			}
 			return item;
 		});
@@ -332,24 +378,53 @@ export default function App() {
 	};
 
 	const addItemByName = (itemName: string, category?: string) => {
+		const now = new Date().toISOString();
 		const newItems = [...currentList];
-		const itemCategory = category;
-		newItems.push({ name: itemName, status: "need", category: itemCategory });
+		// If item exists and is deleted, undelete it
+		const existing = newItems.find(item => item.name === itemName && item.deleted);
+		if (existing) {
+			existing.deleted = false;
+			existing.deletedAt = undefined;
+			existing.status = "need";
+			existing.category = category || existing.category;
+			existing.lastUpdated = now;
+			return setCurrentList([...newItems]);
+		}
+		newItems.push({
+			name: itemName,
+			status: "need",
+			category,
+			dateAdded: now,
+			lastUpdated: now,
+			deleted: false,
+		});
 		setCurrentList(newItems);
 	};
 
 	const removeItemByName = (itemName: string) => {
-		const newItems = [...currentList];
-		const index = newItems.findIndex((item) => item.name === itemName);
-		newItems.splice(index, 1);
+		const now = new Date().toISOString();
+		const newItems = currentList.map(item =>
+			item.name === itemName && !item.deleted
+				? { ...item, deleted: true, deletedAt: now, lastUpdated: now }
+				: item
+		);
 		setCurrentList(newItems);
 	}
 
 	const clearList = () => {
-		setCurrentList(currentList.filter(item => item.status === "need"));
+		const now = new Date().toISOString();
+		// 1. Mark non-needed, non-deleted items as deleted (soft-delete)
+		let updated = currentList.map(item =>
+			item.status !== "need" && !item.deleted
+				? { ...item, deleted: true, deletedAt: now, lastUpdated: now }
+				: item
+		);
+		// 2. Purge (hard-delete) all items that are deleted
+		updated = updated.filter(item => !item.deleted);
+		setCurrentList(updated);
 	};
 
-	let itemNamesOnList = currentList.map((item) => item.name);
+	let itemNamesOnList = currentList.filter(item => !item.deleted).map((item) => item.name);
 	const availableToAdd = useMemo(() => {
 		const result = possibleItems.filter((item) => !itemNamesOnList.includes(item.name)).sort((a, b) => {
 			const categoryA = a.category || "unknown";
@@ -377,12 +452,13 @@ export default function App() {
 			>
 				{isSaving ? `Saving` : isErrorSaving ? `Error Saving!` : `Save List`}
 			</button>
+			{mergeError && <div className="merge-error">{mergeError}</div>}
 			<hr />
 			<h2>{isRemoving && "Remove From "}Current List</h2>
 			{sortOrder.map(category => (
 				<>
 					{currentList
-						.filter(item => (item.category || "unknown") === category)
+						.filter(item => (item.category || "unknown") === category && !item.deleted)
 						.map((item, idx) => (
 							<>
 							{idx === 0 && <h3 className={`category-title`}>{category}</h3>}

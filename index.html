@@ -1,14 +1,112 @@
 <!DOCTYPE html>
-<html lang="en">
-  <head>
-    <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <link rel="shortcut icon" href="data:image/x-icon;," type="image/x-icon" />
-    <title>Grocery List</title>
-  </head>
-  <body>
-    <div id="root"></div>
-    <script type="module" src="/src/index.tsx"></script>
-  </body>
-</html>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<link rel="shortcut icon" href="data:image/x-icon;," type="image/x-icon" />
+<title>Grocery List</title>
+<style>
+button,
+label {
+  border: 1px solid #c0c0c0;
+  border-radius: 8px;
+  font-size: 1em;
+  cursor: pointer;
+  transition: border-color 0.25s;
+  float: left;
+  width: max(min(20em, calc(100vw/2 - 1.2em)), 8em);
+  box-sizing: border-box;
+  margin: 5px;
+  height: 5em;
+  align-items: center;
+  display: flex;
+  justify-content: center;
+}
 
+button:hover,
+label:hover {
+  border-color: #646cff;
+}
+
+button:focus,
+button:focus-visible,
+label:focus,
+label:focus-visible {
+  outline: 4px auto -webkit-focus-ring-color;
+}
+
+
+/* The checkbox is hidden, but the label is styled to look like a checkbox */
+input[type="checkbox"] {
+  display: none;
+}
+
+/* When the checkbox is checked, the label is highlighted */
+input[type="checkbox"]:checked + label {
+  background: #ffffc0;
+}
+
+hr {
+  clear: both;
+}
+
+.saving {
+  background: #00f000;
+}
+
+.error {
+  background: #fccccc;
+}
+
+.removable-item {
+  border: 8px solid #ffcccc;
+}
+
+.carted {
+  background: #ffffc0;
+}
+
+.available-item:not(.carted):not(.removable-item) {
+  opacity: 1;
+  transition: opacity 100ms ease-out;
+  background-color: #ddf0dd;
+}
+
+h3 {
+  clear: both;
+}
+
+.custom {
+  text-transform: capitalize;
+}
+
+input[type=text] {
+  height: 32px;
+  font-size: 16px;
+  width: max(min(20em, calc(100vw/2 - 1.2em)), 8em);
+  border-radius: 4px;
+}
+
+@media (prefers-color-scheme: light) {
+  :root {
+    color: #213547;
+    background-color: #ffffff;
+  }
+
+  a:hover {
+    color: #747bff;
+  }
+
+  button,
+  label {
+    background-color: #f9f9f9;
+  }
+}
+
+.category-title {
+  float: left;
+  transform: rotate(-90deg) translateX(-3.5em);
+  margin: -.5em;
+  width: 1em;
+}
+</style>
+<div id="root"></div>
+<script type="module" src="/src/index.tsx"></script>

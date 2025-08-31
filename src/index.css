@@ -1,16 +1,13 @@
-/* Inline CSS */
-button, label {
+button,
+label {
   border: 1px solid #c0c0c0;
   border-radius: 8px;
   font-size: 1em;
-  font-family: sans-serif;
   cursor: pointer;
   transition: border-color 0.25s;
-  background: #c0c0c0;
   float: left;
   width: max(min(20em, calc(100vw/2 - 1.2em)), 8em);
   box-sizing: border-box;
-  text-align: center;
   margin: 5px;
   height: 5em;
   align-items: center;
@@ -18,11 +15,15 @@ button, label {
   justify-content: center;
 }
 
-button:hover, label:hover {
+button:hover,
+label:hover {
   border-color: #646cff;
 }
+
 button:focus,
-button:focus-visible, label:focus, label:focus-visible {
+button:focus-visible,
+label:focus,
+label:focus-visible {
   outline: 4px auto -webkit-focus-ring-color;
 }
 
@@ -32,15 +33,14 @@ input[type="checkbox"] {
   display: none;
 }
 
-/* first character of label very big: */
-/* label::first-letter {
-  font-size: 3em;
-} */
 /* When the checkbox is checked, the label is highlighted */
 input[type="checkbox"]:checked + label {
   background: #ffffc0;
 }
-hr { clear: both; }
+
+hr {
+  clear: both;
+}
 
 .saving {
   background: #00f000;
@@ -53,6 +53,7 @@ hr { clear: both; }
 .removable-item {
   border: 8px solid #ffcccc;
 }
+
 .carted {
   background: #ffffc0;
 }
@@ -63,35 +64,33 @@ hr { clear: both; }
   background-color: #ddf0dd;
 }
 
-.available-item.removing {
-  opacity: 0 ! important;
-  height: 0 ! important;
-  width: 0 ! important;
-  font-size: 1px ! important;
+h3 {
+  clear: both;
 }
 
-h3 { clear: both; }
-
-.custom { text-transform: capitalize; }
+.custom {
+  text-transform: capitalize;
+}
 
 input[type=text] {
   height: 32px;
   font-size: 16px;
-  /* width: min(12em, calc(100vw/2 - 0.8em)); */
   width: max(min(20em, calc(100vw/2 - 1.2em)), 8em);
   border-radius: 4px;
 }
-
 
 @media (prefers-color-scheme: light) {
   :root {
     color: #213547;
     background-color: #ffffff;
   }
+
   a:hover {
     color: #747bff;
   }
-  button, label {
+
+  button,
+  label {
     background-color: #f9f9f9;
   }
 }

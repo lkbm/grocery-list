@@ -1,5 +1,3 @@
-import './index.css';
-
 import { Hono } from "hono";
 import { serveStatic } from "hono/cloudflare-workers";
 

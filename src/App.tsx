@@ -17,12 +17,7 @@ export interface Item {
 	deletedAt?: string;      // ISO string
 };
 
-export interface Data {
-	value: string;
-}
-
-const DEFAULT_LIST = "[]";
-const DEFAULT_DATE = "2025-01-01T00:00:00Z";
+const DEFAULT_DATE = "1970-01-01T00:00:00Z";
 
 const sortOrder = [
 	"unknown",
@@ -65,12 +60,9 @@ export default function App() {
 	const activeItems = useMemo(() => currentList.filter(item => !item.deleted),
 		[currentList]);
 
-	const getServerList = async (): Promise<Item[]> => {
-		if (['default-list', 'default-list-options'].includes(listName)) {
-			return JSON.parse(DEFAULT_LIST);
-		}
+	const fetchListData = async (listName: string): Promise<Item[]> => {
 		const res = await fetch(`/api/state/${listName}`);
-		const data = await res.json().catch(() => ({ value: DEFAULT_LIST }));
+		const data = await res.json().catch(() => []);
 		const typedData = data as { value: string };
 
 		try {
@@ -82,38 +74,25 @@ export default function App() {
 			}));
 			return loadedList;
 		} catch {
-			return JSON.parse(DEFAULT_LIST);
+			return [];
 		}
+
 	};
+
 	// Load initial state:
 	useEffect(() => {
 		const loadData = async () => {
-			setCurrentList(await getServerList());
-
-			// Load possible items
-			const defaultItems = await getDefaultItems(listName);
-			setPossibleItems(defaultItems);
+			if (['default-list', 'default-list-options'].includes(listName)) {
+				setIsLoading(false);
+				return [];
+			}
+			setCurrentList(await fetchListData(listName));
+			setPossibleItems(await fetchListData(`${listName}-options`));
 			setIsLoading(false);
 		};
 
 		loadData();
 	}, []);
-
-	const getDefaultItems = async (listName: string): Promise<Item[]> => {
-		try {
-			const res = await fetch(`/api/state/${listName}-options`);
-			const data = await res.json().catch(() => ({ value: [] }));
-			const typedData = data as Data;
-			if (typedData.value) {
-				// LKBM TODO: Handle bad format (e.g., because I changed format):
-				return JSON.parse(typedData.value);
-			}
-			return [];
-		}
-		catch {
-			return [];
-		}
-	};
 
 	// Auto-save when list changes:
 	useEffect(() => {
@@ -133,7 +112,7 @@ export default function App() {
 			// Fetch server's current list
 			let mergedList = currentList;
 			if (!force) {
-				const serverList = await getServerList();
+				const serverList = await fetchListData(listName);
 				mergedList = getNewestOfEachItem([...serverList, ...currentList]);
 			} else {
 				mergedList = activeItems.filter(item => ["need", "carted"].includes(item.status || ""));
@@ -189,26 +168,26 @@ export default function App() {
 
 	const addItemByName = (itemName: string, category?: string) => {
 		const now = getNow();
-		const newItems = [...currentList];
 		// If item exists and is deleted, undelete it
-		const existing = newItems.find(item => item.name === itemName && item.deleted);
+		const existing = currentList.find(item => item.name === itemName && item.deleted);
 		if (existing) {
-			existing.deleted = false;
-			existing.deletedAt = undefined;
-			existing.status = "need";
-			existing.category = category || existing.category;
-			existing.lastUpdated = now;
-			return setCurrentList([...newItems]);
+			return setCurrentList(currentList.map(item =>
+				item === existing
+					? {
+						...item, deleted: false, deletedAt: undefined, status:
+							"need", category: category || item.category, lastUpdated: now
+					}
+					: item
+			));
 		}
-		newItems.push({
+		setCurrentList([...currentList, {
 			name: itemName,
 			status: "need",
 			category,
 			dateAdded: now,
 			lastUpdated: now,
 			deleted: false,
-		});
-		setCurrentList(newItems);
+		}]);
 	};
 
 	const removeItemByName = (itemName: string) => {
@@ -221,7 +200,7 @@ export default function App() {
 		setCurrentList(newItems);
 	}
 
-	let itemNamesOnList = currentList.filter(item => !item.deleted).map((item) => item.name);
+	let itemNamesOnList = activeItems.map((item) => item.name);
 	const availableToAdd = useMemo(() => {
 		const result = possibleItems.filter((item) => !itemNamesOnList.includes(item.name)).sort((a, b) => {
 			const categoryA = a.category || "unknown";

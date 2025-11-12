@@ -202,8 +202,20 @@ export default function App() {
 		setCurrentList(newItems);
 	}
 
-	let itemNamesOnList = activeItems.map((item) => item.name);
 	if (isLoading) return <div>Loading...</div>;
+	let itemNamesOnList = activeItems.map((item) => item.name);
+	const itemsByCategory = useMemo(() => {
+		const grouped: { [category: string]: Item[] } = {};
+		activeItems.forEach(item => {
+			const category = item.category || "unknown";
+			if (!grouped[category]) {
+				grouped[category] = [];
+			}
+			grouped[category].push(item);
+		});
+		return grouped;
+	}, [activeItems]);
+
 	return (
 		<div>
 			<button onClick={pruneList}>
@@ -223,13 +235,15 @@ export default function App() {
 			</button>
 			<hr />
 			<h2>{isRemoving && "Remove From "}Current List</h2>
-			{sortOrder.map(category => (
-				<Fragment key={category}>
-					{activeItems
-						.filter(item => (item.category || "unknown") === category)
-						.map((item, idx) => (
+			{sortOrder.map(category => {
+				const items = itemsByCategory[category];
+				if (!items || items.length === 0) return null;
+
+				return (
+					<Fragment key={category}>
+						<h3 className={`category-title`}>{category}</h3>
+						{items.map(item => (
 							<Fragment key={item.name}>
-								{idx === 0 && <h3 className={`category-title`}>{category}</h3>}
 								{isRemoving ? <AvailableItem
 									key={item.name}
 									item={item}
@@ -244,10 +258,10 @@ export default function App() {
 									/>}
 							</Fragment>
 						))
-					}
-				</Fragment>
-			))
-			}
+						}
+					</Fragment>
+				)
+			})}
 			<hr />
 			<AddItems
 				onAddItem={addItemByName}

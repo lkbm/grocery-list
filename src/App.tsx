@@ -1,5 +1,7 @@
+//newest
 import { useState, useEffect, useMemo, useRef } from 'preact/hooks';
 import { Fragment } from 'preact';
+import { memo } from 'preact/compat';
 
 // TODO: Manual Sorting?
 // TODO: Better caching? https://hono.dev/docs/middleware/builtin/cache
@@ -201,15 +203,6 @@ export default function App() {
 	}
 
 	let itemNamesOnList = activeItems.map((item) => item.name);
-	const availableToAdd = useMemo(() => {
-		const result = possibleItems.filter((item) => !itemNamesOnList.includes(item.name)).sort((a, b) => {
-			const categoryA = a.category || "unknown";
-			const categoryB = b.category || "unknown";
-			return sortOrder.indexOf(categoryA) - sortOrder.indexOf(categoryB);
-		});
-		return result;
-	}, [possibleItems, itemNamesOnList]);
-
 	if (isLoading) return <div>Loading...</div>;
 	return (
 		<div>
@@ -256,10 +249,37 @@ export default function App() {
 			))
 			}
 			<hr />
+			<AddItems
+				onAddItem={addItemByName}
+				possibleItems={possibleItems}
+				activeItemNames={itemNamesOnList}
+			/>
+		</div >
+	);
+}
+
+interface AddItemsProps {
+	onAddItem: (itemName: string, category?: string) => void;
+	possibleItems: Item[];
+	activeItemNames: string[];
+}
+
+const AddItems = memo(({ onAddItem, possibleItems, activeItemNames }: AddItemsProps) => {
+	const availableToAdd = useMemo(() => {
+		const result = possibleItems.filter((item) => !activeItemNames.includes(item.name)).sort((a, b) => {
+			const categoryA = a.category || "unknown";
+			const categoryB = b.category || "unknown";
+			return sortOrder.indexOf(categoryA) - sortOrder.indexOf(categoryB);
+		});
+		return result;
+	}, [possibleItems, activeItemNames]);
+
+	return (
+		<>
 			<h2>Add to List</h2>
 			{
 				sortOrder.map(category => (
-					<CustomItem key={category} onChange={addItemByName} category={category} />
+					<CustomItem key={category} onChange={onAddItem} category={category} />
 				))
 			}
 			<h3>Standard items</h3>
@@ -268,13 +288,13 @@ export default function App() {
 					<AvailableItem
 						key={`available-${item.name}`}
 						item={item}
-						onChange={addItemByName}
+						onChange={onAddItem}
 					/>
 				))
 			}
-		</div >
+		</>
 	);
-}
+});
 
 interface ListItemProps {
 	toggleCurrentItems: (itemName: string) => void;

@@ -4,7 +4,6 @@ import { Fragment } from 'preact';
 import { memo } from 'preact/compat';
 
 // TODO: Manual Sorting?
-// TODO: Better caching? https://hono.dev/docs/middleware/builtin/cache
 // Add by recipe
 // Grid layout?
 // Import/export
@@ -32,7 +31,9 @@ const sortOrder = [
 	"coffee and tea",
 	"eggs/dairy",
 	"soda",
+	"pharmacy",
 	"frozen",
+	"Farmers' Market"
 ];
 
 const getNewestOfEachItem = (itemList: Item[]): Item[] => {

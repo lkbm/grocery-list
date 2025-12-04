@@ -3,7 +3,7 @@ vite creates
 tsconfig.app.json for the web app
 tsconfig.node.json for the server-side code
 
-We've told it to substitute preact for react.
+We substituted preact for react.
 
 # Run locally
 nvm use
@@ -11,7 +11,9 @@ nvm install
 npm run dev
 
 # Deploy
+
 wrangler deploy
+
 # React + TypeScript + Vite
 
 This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.

@@ -1,12 +1,6 @@
-//newest
 import { useState, useEffect, useMemo, useRef } from 'preact/hooks';
 import { Fragment } from 'preact';
 import { memo } from 'preact/compat';
-
-// TODO: Manual Sorting?
-// Add by recipe
-// Grid layout?
-// Import/export
 
 export interface Item {
 	name: string;
@@ -95,7 +89,7 @@ export default function App() {
 		};
 
 		loadData();
-	}, []);
+	});
 
 	// Auto-save when list changes:
 	useEffect(() => {
@@ -146,7 +140,7 @@ export default function App() {
 	const pruneList = () => {
 		const now = getNow();
 		// 1. Mark non-needed, non-deleted items as deleted
-		let updated = currentList.map(item =>
+		const updated = currentList.map(item =>
 			item.status !== "need"
 				? { ...item, deleted: true, deletedAt: now, lastUpdated: now }
 				: item
@@ -203,8 +197,6 @@ export default function App() {
 		setCurrentList(newItems);
 	}
 
-	if (isLoading) return <div>Loading...</div>;
-	let itemNamesOnList = activeItems.map((item) => item.name);
 	const itemsByCategory = useMemo(() => {
 		const grouped: { [category: string]: Item[] } = {};
 		activeItems.forEach(item => {
@@ -217,6 +209,8 @@ export default function App() {
 		return grouped;
 	}, [activeItems]);
 
+	if (isLoading) return <div>Loading...</div>;
+	const itemNamesOnList = activeItems.map((item) => item.name);
 	return (
 		<div>
 			<button onClick={pruneList}>

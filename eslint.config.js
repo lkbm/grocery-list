@@ -1,7 +1,6 @@
 import js from '@eslint/js'
 import globals from 'globals'
 import reactHooks from 'eslint-plugin-react-hooks'
-import prefresh from '@prefresh/vite';
 import tseslint from 'typescript-eslint'
 
 export default tseslint.config(
@@ -15,17 +14,9 @@ export default tseslint.config(
     },
     plugins: {
       'react-hooks': reactHooks,
-      'react-refresh': prefresh,
-    },
-    alias: {
-      react: 'preact/compat',
     },
     rules: {
       ...reactHooks.configs.recommended.rules,
-      'react-refresh/only-export-components': [
-        'warn',
-        { allowConstantExport: true },
-      ],
     },
   },
 )

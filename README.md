@@ -1,10 +1,17 @@
-# Luca's Notes
-vite creates
-tsconfig.app.json for the web app
-tsconfig.node.json for the server-side code
+# Grocery List
 
-We substituted preact for react.
+A simple grocery list application built with preeact, TypeScript, Vite, and Cloudflare Workers.
 
+You can create a list by visiting a given hash: https://grocery-list.lkbm.workers.dev/#your-list-name
+It will be saved to Cloudflare KV.
+
+The "Standard items" list will be empty by default. You can create a second list, https://grocery-list.lkbm.workers.dev/#your-list-name-options and populate it with items you frequently purchase, and that will then populate the Standard items section of your main list.
+
+Items will be sorted by store section, which is currently hardcoded to be suitable for my local Ingles. Sorry if your store differs. I wrote this 'cause I'd been using a checkbox list in Google Docs and it was terrible on mobile.
+
+Typically, after a shopping trip, I'll use "Prune Purchases" to clear out anything I bought (hopefully everything!) -- the "Remove Items" button will put you in a mode where you can select items to delete individually, but I find that's rarely needed.
+
+This is not vibe coded, but was my first "almost vibe coded" project. Prior to this, I mostly used Copilot autocompletion and the occasional "write me a script".
 # Run locally
 nvm use
 nvm install

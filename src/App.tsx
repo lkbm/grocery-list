@@ -323,7 +323,7 @@ const ListItem = ({ item, currentValue, toggleCurrentItems }: ListItemProps) => 
 			<label htmlFor={item.name}>
 				{item.name}
 			</label>
-		</div >
+		</div>
 	);
 };
 

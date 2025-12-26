@@ -12,14 +12,15 @@ Items will be sorted by store section, which is currently hardcoded to be suitab
 Typically, after a shopping trip, I'll use "Prune Purchases" to clear out anything I bought (hopefully everything!) -- the "Remove Items" button will put you in a mode where you can select items to delete individually, but I find that's rarely needed.
 
 This is not vibe coded, but was my first "almost vibe coded" project. Prior to this, I mostly used Copilot autocompletion and the occasional "write me a script".
+
 # Run locally
-nvm use
-nvm install
-npm run dev
+* nvm use
+* nvm install
+* npm run dev
 
 # Deploy
 
-wrangler deploy
+* wrangler deploy
 
 # React + TypeScript + Vite
 

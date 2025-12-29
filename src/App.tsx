@@ -89,7 +89,7 @@ export default function App() {
 		};
 
 		loadData();
-	});
+	}, [listName]);
 
 	// Auto-save when list changes:
 	useEffect(() => {

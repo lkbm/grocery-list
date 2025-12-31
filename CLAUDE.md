@@ -78,8 +78,6 @@ Items are sorted by predefined store layout: unknown, produce, corner, bread, ca
 
 ## TODOs
 * Deleted foo-option items should not be included in the default items.
-* Drag-and-drop to reorder items within a category. (or recipes, or in a recipe)
-* Make categories a creatable and re-arrangable object. They should be defined in list-options.
 * Maybe switch CSS to grid layout?
 * Import/export option?
 * ListItem is a div-input, but AvailableItem and CustomItem are buttons. I'd like shared element types so the styles are more consistent.

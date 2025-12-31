@@ -11,6 +11,7 @@ export interface Item {
 	lastUpdated?: string;    // ISO string
 	deleted?: boolean;
 	deletedAt?: string;      // ISO string
+	sortIndex?: number;      // Custom sort order within category
 };
 
 export interface OptionsData {
@@ -59,6 +60,7 @@ export default function App() {
 	const [recipeOrder, setRecipeOrder] = useState<string[]>([]);
 	const [isLoading, setIsLoading] = useState<boolean>(true);
 	const [isRemoving, setIsRemoving] = useState<boolean>(false);
+	const [isSorting, setIsSorting] = useState<boolean>(false);
 	const [isSaving, setIsSaving] = useState<boolean>(false);
 	const [isErrorSaving, setErrorSaving] = useState<boolean>(false);
 	const [showAddRecipeModal, setShowAddRecipeModal] = useState<boolean>(false);
@@ -256,6 +258,18 @@ export default function App() {
 		await saveOptionsData(updatedItems, newRecipeOrder);
 	};
 
+	const reorderRecipe = (recipeName: string, newIndex: number) => {
+		const oldIndex = recipeOrder.indexOf(recipeName);
+		if (oldIndex === -1 || oldIndex === newIndex) return;
+
+		const newOrder = [...recipeOrder];
+		newOrder.splice(oldIndex, 1);
+		newOrder.splice(newIndex, 0, recipeName);
+
+		// Save immediately since recipes are in options
+		saveOptionsData(possibleItems, newOrder);
+	};
+
 	const pruneList = () => {
 		const now = getNow();
 		// 1. Mark non-needed, non-deleted items as deleted
@@ -325,8 +339,48 @@ export default function App() {
 			}
 			grouped[category].push(item);
 		});
+		// Sort items within each category by sortIndex (if present), then by dateAdded
+		Object.keys(grouped).forEach(category => {
+			grouped[category].sort((a, b) => {
+				const aIndex = a.sortIndex ?? Infinity;
+				const bIndex = b.sortIndex ?? Infinity;
+				if (aIndex !== bIndex) return aIndex - bIndex;
+				// Fallback to dateAdded for items without sortIndex
+				return (a.dateAdded || "").localeCompare(b.dateAdded || "");
+			});
+		});
 		return grouped;
 	}, [activeItems]);
+
+	const reorderItem = (itemName: string, category: string, newIndex: number) => {
+		const categoryItems = itemsByCategory[category];
+		if (!categoryItems) return;
+
+		const oldIndex = categoryItems.findIndex(i => i.name === itemName);
+		if (oldIndex === -1 || oldIndex === newIndex) return;
+
+		// Build new order for this category
+		const reordered = [...categoryItems];
+		const [moved] = reordered.splice(oldIndex, 1);
+		reordered.splice(newIndex, 0, moved);
+
+		// Assign new sortIndex values
+		const now = getNow();
+		const updates = new Map<string, number>();
+		reordered.forEach((item, idx) => {
+			updates.set(item.name, idx);
+		});
+
+		setCurrentList(currentList.map(item => {
+			if (item.category === category || (!item.category && category === "unknown")) {
+				const newSortIndex = updates.get(item.name);
+				if (newSortIndex !== undefined) {
+					return { ...item, sortIndex: newSortIndex, lastUpdated: now };
+				}
+			}
+			return item;
+		}));
+	};
 
 	if (isLoading) return <div>Loading...</div>;
 	const itemNamesOnList = activeItems.map((item) => item.name);
@@ -340,6 +394,9 @@ export default function App() {
 			>
 				{isRemoving ? "Done Removing" : "Remove Items"}
 			</button>
+			<button onClick={() => setIsSorting(!isSorting)} className={isSorting ? 'active-mode' : ''}>
+				{isSorting ? "Done Sorting" : "Sort Items"}
+			</button>
 			<button
 				onClick={() => saveList()}
 				className={isSaving ? 'saving' : isErrorSaving ? 'error' : ''}
@@ -348,7 +405,7 @@ export default function App() {
 				{isSaving ? `Saving` : isErrorSaving ? `Error Saving!` : `Save List`}
 			</button>
 			<hr />
-			<h2>{isRemoving && "Remove From "}Current List</h2>
+			<h2>{isRemoving ? "Remove From " : isSorting ? "Drag to Reorder " : ""}Current List</h2>
 			{sortOrder.map(category => {
 				const items = itemsByCategory[category];
 				if (!items || items.length === 0) return null;
@@ -356,7 +413,7 @@ export default function App() {
 				return (
 					<Fragment key={category}>
 						<h3 className={`category-title`}>{category}</h3>
-						{items.map(item => (
+						{items.map((item, index) => (
 							<Fragment key={item.name}>
 								{isRemoving ? <AvailableItem
 									key={item.name}
@@ -364,6 +421,13 @@ export default function App() {
 									onChange={removeItemByName}
 									className={`removable-item ${item.status}`}
 								/>
+									: isSorting ? <DraggableItem
+										key={item.name}
+										item={item}
+										index={index}
+										category={category}
+										onReorder={reorderItem}
+									/>
 									: <ListItem
 										key={item.name}
 										item={item}
@@ -384,6 +448,8 @@ export default function App() {
 				recipeOrder={recipeOrder}
 				onAddRecipeClick={() => setShowAddRecipeModal(true)}
 				onDeleteRecipe={deleteRecipe}
+				isSorting={isSorting}
+				onReorderRecipe={reorderRecipe}
 			/>
 			{showAddRecipeModal && (
 				<AddRecipeModal
@@ -403,6 +469,8 @@ interface AddItemsProps {
 	recipeOrder: string[];
 	onAddRecipeClick: () => void;
 	onDeleteRecipe: (recipeName: string) => Promise<void>;
+	isSorting: boolean;
+	onReorderRecipe: (recipeName: string, newIndex: number) => void;
 }
 
 // Check if an item should appear in Standard Items (default items)
@@ -413,8 +481,10 @@ const isDefaultItem = (item: Item): boolean => {
 	return item.recipes.includes(DEFAULT_RECIPE);
 };
 
-const AddItems = memo(({ onAddItem, possibleItems, activeItemNames, recipeOrder, onAddRecipeClick, onDeleteRecipe }: AddItemsProps) => {
+const AddItems = memo(({ onAddItem, possibleItems, activeItemNames, recipeOrder, onAddRecipeClick, onDeleteRecipe, isSorting, onReorderRecipe }: AddItemsProps) => {
 	const [expandedRecipe, setExpandedRecipe] = useState<string | null>(null);
+	const [draggingRecipe, setDraggingRecipe] = useState<string | null>(null);
+	const [dragOverRecipe, setDragOverRecipe] = useState<string | null>(null);
 
 	// Standard items: default items not already on the list
 	const standardItems = useMemo(() => {
@@ -456,35 +526,86 @@ const AddItems = memo(({ onAddItem, possibleItems, activeItemNames, recipeOrder,
 					/>
 				))
 			}
-			<h3>Recipes</h3>
-			{recipeOrder.map((recipeName) => {
+			<h3>{isSorting ? "Drag to Reorder " : ""}Recipes</h3>
+			{recipeOrder.map((recipeName, index) => {
 				const isExpanded = expandedRecipe === recipeName;
 				const recipeItems = getRecipeItems(recipeName);
+				const isDragging = draggingRecipe === recipeName;
+				const isDragOver = dragOverRecipe === recipeName;
+
+				const handleRecipeDragStart = (e: DragEvent) => {
+					setDraggingRecipe(recipeName);
+					if (e.dataTransfer) {
+						e.dataTransfer.effectAllowed = 'move';
+						e.dataTransfer.setData('text/plain', JSON.stringify({ type: 'recipe', name: recipeName, index }));
+					}
+				};
+
+				const handleRecipeDragEnd = () => {
+					setDraggingRecipe(null);
+				};
+
+				const handleRecipeDragOver = (e: DragEvent) => {
+					e.preventDefault();
+					if (e.dataTransfer) {
+						e.dataTransfer.dropEffect = 'move';
+					}
+					setDragOverRecipe(recipeName);
+				};
+
+				const handleRecipeDragLeave = () => {
+					setDragOverRecipe(null);
+				};
+
+				const handleRecipeDrop = (e: DragEvent) => {
+					e.preventDefault();
+					setDragOverRecipe(null);
+					if (!e.dataTransfer) return;
+
+					try {
+						const data = JSON.parse(e.dataTransfer.getData('text/plain'));
+						if (data.type === 'recipe' && data.name !== recipeName) {
+							onReorderRecipe(data.name, index);
+						}
+					} catch {
+						// Invalid drag data
+					}
+				};
+
 				return (
 					<div key={recipeName} className="recipe-section">
 						<div className="recipe-header-row">
 							<button
-								className="recipe-header"
-								onClick={() => setExpandedRecipe(isExpanded ? null : recipeName)}
+								className={`recipe-header ${isDragging ? 'dragging' : ''} ${isDragOver ? 'drag-over' : ''}`}
+								onClick={() => !isSorting && setExpandedRecipe(isExpanded ? null : recipeName)}
+								draggable={isSorting}
+								onDragStart={isSorting ? handleRecipeDragStart : undefined}
+								onDragEnd={isSorting ? handleRecipeDragEnd : undefined}
+								onDragOver={isSorting ? handleRecipeDragOver : undefined}
+								onDragLeave={isSorting ? handleRecipeDragLeave : undefined}
+								onDrop={isSorting ? handleRecipeDrop : undefined}
 							>
+								{isSorting && <span className="drag-handle">⋮⋮</span>}
 								<span className="recipe-toggle">{isExpanded ? '▾' : '▸'}</span>
 								{recipeName}
 								<span className="recipe-count">({recipeItems.length})</span>
 							</button>
-							<button
-								className="recipe-delete"
-								onClick={(e) => {
-									e.stopPropagation();
-									if (confirm(`Delete recipe "${recipeName}"?`)) {
-										onDeleteRecipe(recipeName);
-									}
-								}}
-								title="Delete recipe"
-							>
-								&times;
-							</button>
+							{!isSorting && (
+								<button
+									className="recipe-delete"
+									onClick={(e) => {
+										e.stopPropagation();
+										if (confirm(`Delete recipe "${recipeName}"?`)) {
+											onDeleteRecipe(recipeName);
+										}
+									}}
+									title="Delete recipe"
+								>
+									&times;
+								</button>
+							)}
 						</div>
-						{isExpanded && (
+						{isExpanded && !isSorting && (
 							<div className="recipe-items">
 								{recipeItems.map((item) => (
 									<AvailableItem
@@ -525,6 +646,73 @@ const ListItem = ({ item, currentValue, toggleCurrentItems }: ListItemProps) => 
 				{item.name}
 			</label>
 		</div>
+	);
+};
+
+interface DraggableItemProps {
+	item: Item;
+	index: number;
+	category: string;
+	onReorder: (itemName: string, category: string, newIndex: number) => void;
+}
+
+const DraggableItem = ({ item, index, category, onReorder }: DraggableItemProps) => {
+	const [isDragging, setIsDragging] = useState(false);
+	const [isDragOver, setIsDragOver] = useState(false);
+
+	const handleDragStart = (e: DragEvent) => {
+		setIsDragging(true);
+		if (e.dataTransfer) {
+			e.dataTransfer.effectAllowed = 'move';
+			e.dataTransfer.setData('text/plain', JSON.stringify({ name: item.name, category, index }));
+		}
+	};
+
+	const handleDragEnd = () => {
+		setIsDragging(false);
+	};
+
+	const handleDragOver = (e: DragEvent) => {
+		e.preventDefault();
+		if (e.dataTransfer) {
+			e.dataTransfer.dropEffect = 'move';
+		}
+		setIsDragOver(true);
+	};
+
+	const handleDragLeave = () => {
+		setIsDragOver(false);
+	};
+
+	const handleDrop = (e: DragEvent) => {
+		e.preventDefault();
+		setIsDragOver(false);
+		if (!e.dataTransfer) return;
+
+		try {
+			const data = JSON.parse(e.dataTransfer.getData('text/plain'));
+			// Only allow drops within same category
+			if (data.category === category && data.name !== item.name) {
+				onReorder(data.name, category, index);
+			}
+		} catch {
+			// Invalid drag data
+		}
+	};
+
+	return (
+		<button
+			draggable
+			onDragStart={handleDragStart}
+			onDragEnd={handleDragEnd}
+			onDragOver={handleDragOver}
+			onDragLeave={handleDragLeave}
+			onDrop={handleDrop}
+			className={`draggable-item ${isDragging ? 'dragging' : ''} ${isDragOver ? 'drag-over' : ''} ${item.status || ''}`}
+		>
+			<span className="drag-handle">⋮⋮</span>
+			{item.name}
+		</button>
 	);
 };
 

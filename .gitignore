@@ -27,3 +27,4 @@ dist-ssr
 wrangler.toml
 
 bundle-visualization.html
+untracked_files/*

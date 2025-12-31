@@ -64,8 +64,8 @@ interface Item {
 }
 ```
 
-### Store Categories (in order)
-Items are sorted by predefined store layout: unknown, produce, corner, bread, cans, pasta, soup, coffee and tea, eggs/dairy, soda, pharmacy, frozen, Farmers' Market
+### Store Categories
+Items are sorted by user-defined store sections (stored in `storeSections` array in options data). Default sections are provided for new lists but users can add, remove, and reorder sections via "Sort Items" mode.
 
 ## Development Notes
 

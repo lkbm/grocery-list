@@ -17,13 +17,15 @@ export interface Item {
 export interface OptionsData {
 	items: Item[];
 	recipeOrder: string[];   // Ordered list of recipe names
+	storeSections: string[]; // Ordered list of store sections/categories
 }
 
 const DEFAULT_RECIPE = "default items";
 
 const DEFAULT_DATE = "1970-01-01T00:00:00Z";
 
-const sortOrder = [
+// Default store sections for new lists or backwards compatibility
+const DEFAULT_STORE_SECTIONS = [
 	"unknown",
 	"produce",
 	"corner",
@@ -58,6 +60,7 @@ export default function App() {
 	const [force, setForce] = useState<boolean>(false);
 	const [possibleItems, setPossibleItems] = useState<Item[]>([]);
 	const [recipeOrder, setRecipeOrder] = useState<string[]>([]);
+	const [storeSections, setStoreSections] = useState<string[]>([]);
 	const [isLoading, setIsLoading] = useState<boolean>(true);
 	const [isRemoving, setIsRemoving] = useState<boolean>(false);
 	const [isSorting, setIsSorting] = useState<boolean>(false);
@@ -70,6 +73,30 @@ export default function App() {
 
 	const activeItems = useMemo(() => currentList.filter(item => !item.deleted),
 		[currentList]);
+
+	// Effective sort order: stored sections + any new categories from items (backwards compatibility)
+	const effectiveSortOrder = useMemo(() => {
+		// Start with stored sections, or defaults if empty
+		const sections = storeSections.length > 0 ? [...storeSections] : [...DEFAULT_STORE_SECTIONS];
+
+		// Find all unique categories from items that aren't in sections yet
+		const allCategories = new Set<string>();
+		activeItems.forEach(item => {
+			if (item.category) allCategories.add(item.category);
+		});
+		possibleItems.forEach(item => {
+			if (item.category) allCategories.add(item.category);
+		});
+
+		// Add any missing categories at the end
+		allCategories.forEach(category => {
+			if (!sections.includes(category)) {
+				sections.push(category);
+			}
+		});
+
+		return sections;
+	}, [storeSections, activeItems, possibleItems]);
 
 	// Union of items from currentList and possibleItems (for recipe modal)
 	const allAvailableItems = useMemo(() => {
@@ -118,7 +145,8 @@ export default function App() {
 						dateAdded: item.dateAdded || DEFAULT_DATE,
 						lastUpdated: item.lastUpdated || DEFAULT_DATE,
 					})),
-					recipeOrder: []
+					recipeOrder: [],
+					storeSections: []  // Will be populated from item categories
 				};
 			}
 			return {
@@ -127,10 +155,11 @@ export default function App() {
 					dateAdded: item.dateAdded || DEFAULT_DATE,
 					lastUpdated: item.lastUpdated || DEFAULT_DATE,
 				})),
-				recipeOrder: parsed.recipeOrder || []
+				recipeOrder: parsed.recipeOrder || [],
+				storeSections: parsed.storeSections || []  // Will be populated from item categories
 			};
 		} catch {
-			return { items: [], recipeOrder: [] };
+			return { items: [], recipeOrder: [], storeSections: [] };
 		}
 	};
 
@@ -151,6 +180,7 @@ export default function App() {
 			setCurrentList(currentListData);
 			setPossibleItems(optionsData.items);
 			setRecipeOrder(optionsData.recipeOrder);
+			setStoreSections(optionsData.storeSections);
 			setIsLoading(false);
 		};
 
@@ -203,8 +233,10 @@ export default function App() {
 
 	const getNow = () => new Date().toISOString();
 
-	const saveOptionsData = async (items: Item[], recipes: string[]) => {
-		const optionsData: OptionsData = { items, recipeOrder: recipes };
+	const saveOptionsData = async (items: Item[], recipes: string[], sections?: string[]) => {
+		// Use provided sections, or current effectiveSortOrder to persist any auto-discovered categories
+		const sectionsToSave = sections ?? effectiveSortOrder;
+		const optionsData: OptionsData = { items, recipeOrder: recipes, storeSections: sectionsToSave };
 		await fetch(`/api/state/${optionsListName}`, {
 			method: 'PUT',
 			headers: { 'Content-Type': 'application/json' },
@@ -212,6 +244,7 @@ export default function App() {
 		});
 		setPossibleItems(items);
 		setRecipeOrder(recipes);
+		setStoreSections(sectionsToSave);
 	};
 
 	const addRecipe = async (recipeName: string, recipeItems: Item[]) => {
@@ -268,6 +301,59 @@ export default function App() {
 
 		// Save immediately since recipes are in options
 		saveOptionsData(possibleItems, newOrder);
+	};
+
+	const reorderSection = (sectionName: string, newIndex: number) => {
+		const oldIndex = effectiveSortOrder.indexOf(sectionName);
+		if (oldIndex === -1 || oldIndex === newIndex) return;
+
+		const newOrder = [...effectiveSortOrder];
+		newOrder.splice(oldIndex, 1);
+		newOrder.splice(newIndex, 0, sectionName);
+
+		saveOptionsData(possibleItems, recipeOrder, newOrder);
+	};
+
+	const addSection = (sectionName: string) => {
+		if (effectiveSortOrder.includes(sectionName)) return;
+		const newSections = [...effectiveSortOrder, sectionName];
+		saveOptionsData(possibleItems, recipeOrder, newSections);
+	};
+
+	const deleteSection = async (sectionName: string, deleteItems: boolean) => {
+		// Remove section from the order
+		const newSections = effectiveSortOrder.filter(s => s !== sectionName);
+
+		if (deleteItems) {
+			// Mark all items in this category as deleted
+			const now = getNow();
+			const updatedCurrentList = currentList.map(item =>
+				item.category === sectionName
+					? { ...item, deleted: true, deletedAt: now, lastUpdated: now }
+					: item
+			);
+			setCurrentList(updatedCurrentList);
+
+			// Also remove from possibleItems
+			const updatedPossibleItems = possibleItems.filter(item => item.category !== sectionName);
+			await saveOptionsData(updatedPossibleItems, recipeOrder, newSections);
+		} else {
+			// Move items to "unknown" category
+			const now = getNow();
+			const updatedCurrentList = currentList.map(item =>
+				item.category === sectionName
+					? { ...item, category: "unknown", lastUpdated: now }
+					: item
+			);
+			setCurrentList(updatedCurrentList);
+
+			const updatedPossibleItems = possibleItems.map(item =>
+				item.category === sectionName
+					? { ...item, category: "unknown" }
+					: item
+			);
+			await saveOptionsData(updatedPossibleItems, recipeOrder, newSections);
+		}
 	};
 
 	const pruneList = () => {
@@ -406,7 +492,7 @@ export default function App() {
 			</button>
 			<hr />
 			<h2>{isRemoving ? "Remove From " : isSorting ? "Drag to Reorder " : ""}Current List</h2>
-			{sortOrder.map(category => {
+			{effectiveSortOrder.map(category => {
 				const items = itemsByCategory[category];
 				if (!items || items.length === 0) return null;
 
@@ -446,14 +532,19 @@ export default function App() {
 				possibleItems={possibleItems}
 				activeItemNames={itemNamesOnList}
 				recipeOrder={recipeOrder}
+				storeSections={effectiveSortOrder}
 				onAddRecipeClick={() => setShowAddRecipeModal(true)}
 				onDeleteRecipe={deleteRecipe}
 				isSorting={isSorting}
 				onReorderRecipe={reorderRecipe}
+				onReorderSection={reorderSection}
+				onAddSection={addSection}
+				onDeleteSection={deleteSection}
 			/>
 			{showAddRecipeModal && (
 				<AddRecipeModal
 					possibleItems={allAvailableItems}
+					storeSections={effectiveSortOrder}
 					onSave={addRecipe}
 					onClose={() => setShowAddRecipeModal(false)}
 				/>
@@ -467,10 +558,14 @@ interface AddItemsProps {
 	possibleItems: Item[];
 	activeItemNames: string[];
 	recipeOrder: string[];
+	storeSections: string[];
 	onAddRecipeClick: () => void;
 	onDeleteRecipe: (recipeName: string) => Promise<void>;
 	isSorting: boolean;
 	onReorderRecipe: (recipeName: string, newIndex: number) => void;
+	onReorderSection: (sectionName: string, newIndex: number) => void;
+	onAddSection: (sectionName: string) => void;
+	onDeleteSection: (sectionName: string, deleteItems: boolean) => Promise<void>;
 }
 
 // Check if an item should appear in Standard Items (default items)
@@ -481,10 +576,23 @@ const isDefaultItem = (item: Item): boolean => {
 	return item.recipes.includes(DEFAULT_RECIPE);
 };
 
-const AddItems = memo(({ onAddItem, possibleItems, activeItemNames, recipeOrder, onAddRecipeClick, onDeleteRecipe, isSorting, onReorderRecipe }: AddItemsProps) => {
+const AddItems = memo(({ onAddItem, possibleItems, activeItemNames, recipeOrder, storeSections, onAddRecipeClick, onDeleteRecipe, isSorting, onReorderRecipe, onReorderSection, onAddSection, onDeleteSection }: AddItemsProps) => {
 	const [expandedRecipe, setExpandedRecipe] = useState<string | null>(null);
 	const [draggingRecipe, setDraggingRecipe] = useState<string | null>(null);
 	const [dragOverRecipe, setDragOverRecipe] = useState<string | null>(null);
+	const [draggingSection, setDraggingSection] = useState<string | null>(null);
+	const [dragOverSection, setDragOverSection] = useState<string | null>(null);
+	const [deletingSectionName, setDeletingSectionName] = useState<string | null>(null);
+	const [deleteItemsChecked, setDeleteItemsChecked] = useState(false);
+	const [isAddingSection, setIsAddingSection] = useState(false);
+	const [newSectionName, setNewSectionName] = useState("");
+	const newSectionInputRef = useRef<HTMLInputElement>(null);
+
+	useEffect(() => {
+		if (isAddingSection && newSectionInputRef.current) {
+			newSectionInputRef.current.focus();
+		}
+	}, [isAddingSection]);
 
 	// Standard items: default items not already on the list
 	const standardItems = useMemo(() => {
@@ -493,9 +601,9 @@ const AddItems = memo(({ onAddItem, possibleItems, activeItemNames, recipeOrder,
 			.sort((a, b) => {
 				const categoryA = a.category || "unknown";
 				const categoryB = b.category || "unknown";
-				return sortOrder.indexOf(categoryA) - sortOrder.indexOf(categoryB);
+				return storeSections.indexOf(categoryA) - storeSections.indexOf(categoryB);
 			});
-	}, [possibleItems, activeItemNames]);
+	}, [possibleItems, activeItemNames, storeSections]);
 
 	// Get items for a specific recipe
 	const getRecipeItems = (recipeName: string) => {
@@ -504,18 +612,120 @@ const AddItems = memo(({ onAddItem, possibleItems, activeItemNames, recipeOrder,
 			.sort((a, b) => {
 				const categoryA = a.category || "unknown";
 				const categoryB = b.category || "unknown";
-				return sortOrder.indexOf(categoryA) - sortOrder.indexOf(categoryB);
+				return storeSections.indexOf(categoryA) - storeSections.indexOf(categoryB);
 			});
+	};
+
+	const handleSectionDragStart = (sectionName: string, index: number) => (e: DragEvent) => {
+		setDraggingSection(sectionName);
+		if (e.dataTransfer) {
+			e.dataTransfer.effectAllowed = 'move';
+			e.dataTransfer.setData('text/plain', JSON.stringify({ type: 'section', name: sectionName, index }));
+		}
+	};
+
+	const handleSectionDragEnd = () => {
+		setDraggingSection(null);
+	};
+
+	const handleSectionDragOver = (sectionName: string) => (e: DragEvent) => {
+		e.preventDefault();
+		if (e.dataTransfer) {
+			e.dataTransfer.dropEffect = 'move';
+		}
+		setDragOverSection(sectionName);
+	};
+
+	const handleSectionDragLeave = () => {
+		setDragOverSection(null);
+	};
+
+	const handleSectionDrop = (targetIndex: number) => (e: DragEvent) => {
+		e.preventDefault();
+		setDragOverSection(null);
+		if (!e.dataTransfer) return;
+
+		try {
+			const data = JSON.parse(e.dataTransfer.getData('text/plain'));
+			if (data.type === 'section' && data.index !== targetIndex) {
+				onReorderSection(data.name, targetIndex);
+			}
+		} catch {
+			// Invalid drag data
+		}
+	};
+
+	const handleAddSectionSubmit = (e: Event) => {
+		e.preventDefault();
+		if (newSectionName.trim()) {
+			onAddSection(newSectionName.trim());
+			setNewSectionName("");
+			setIsAddingSection(false);
+		}
+	};
+
+	const handleDeleteConfirm = async () => {
+		if (deletingSectionName) {
+			await onDeleteSection(deletingSectionName, deleteItemsChecked);
+			setDeletingSectionName(null);
+			setDeleteItemsChecked(false);
+		}
 	};
 
 	return (
 		<>
-			<h2>Add to List</h2>
+			<h2>{isSorting ? "Drag to Reorder " : ""}Sections</h2>
 			{
-				sortOrder.map(category => (
-					<CustomItem key={category} onChange={onAddItem} category={category} />
-				))
+				storeSections.map((category, index) => {
+					const isDragging = draggingSection === category;
+					const isDragOver = dragOverSection === category;
+
+					return isSorting ? (
+						<div key={category} className="section-row">
+							<button
+								className={`available-item custom draggable-section ${isDragging ? 'dragging' : ''} ${isDragOver ? 'drag-over' : ''}`}
+								draggable
+								onDragStart={handleSectionDragStart(category, index)}
+								onDragEnd={handleSectionDragEnd}
+								onDragOver={handleSectionDragOver(category)}
+								onDragLeave={handleSectionDragLeave}
+								onDrop={handleSectionDrop(index)}
+							>
+								<span className="drag-handle">⋮⋮</span>
+								{category}
+							</button>
+							<button
+								className="section-delete"
+								onClick={() => setDeletingSectionName(category)}
+								title="Delete section"
+							>
+								&times;
+							</button>
+						</div>
+					) : (
+						<CustomItem key={category} onChange={onAddItem} category={category} />
+					);
+				})
 			}
+			{isSorting && (
+				isAddingSection ? (
+					<form onSubmit={handleAddSectionSubmit} className="add-section-form">
+						<input
+							ref={newSectionInputRef}
+							type="text"
+							value={newSectionName}
+							onChange={(e) => setNewSectionName((e.target as HTMLInputElement).value)}
+							placeholder="Section name"
+						/>
+						<button type="submit">Add</button>
+						<button type="button" onClick={() => { setIsAddingSection(false); setNewSectionName(""); }}>Cancel</button>
+					</form>
+				) : (
+					<button className="add-section-button" onClick={() => setIsAddingSection(true)}>
+						+ Add Section
+					</button>
+				)
+			)}
 			<h3>Standard items</h3>
 			{
 				standardItems.map((item) => (
@@ -623,6 +833,34 @@ const AddItems = memo(({ onAddItem, possibleItems, activeItemNames, recipeOrder,
 			<button className="add-recipe-button" onClick={onAddRecipeClick}>
 				+ Add Recipe
 			</button>
+			{deletingSectionName && (
+				<div className="modal-overlay" onClick={() => { setDeletingSectionName(null); setDeleteItemsChecked(false); }}>
+					<div className="modal-content delete-section-modal" onClick={e => e.stopPropagation()}>
+						<div className="modal-header">
+							<h2>Delete Section</h2>
+							<button className="modal-close" onClick={() => { setDeletingSectionName(null); setDeleteItemsChecked(false); }}>&times;</button>
+						</div>
+						<div className="modal-body">
+							<p>Delete the section "{deletingSectionName}"?</p>
+							<p>Items in this section will be moved to "unknown".</p>
+							<label className="delete-items-checkbox">
+								<input
+									type="checkbox"
+									checked={deleteItemsChecked}
+									onChange={(e) => setDeleteItemsChecked((e.target as HTMLInputElement).checked)}
+								/>
+								Also delete all items in this section
+							</label>
+						</div>
+						<div className="modal-footer">
+							<button onClick={() => { setDeletingSectionName(null); setDeleteItemsChecked(false); }}>Cancel</button>
+							<button onClick={handleDeleteConfirm} className="delete-button">
+								Delete Section
+							</button>
+						</div>
+					</div>
+				</div>
+			)}
 		</>
 	);
 });
@@ -789,11 +1027,12 @@ const CustomItem = ({ onChange, category }: CustomItemProps) => {
 
 interface AddRecipeModalProps {
 	possibleItems: Item[];
+	storeSections: string[];
 	onSave: (recipeName: string, items: Item[]) => Promise<void>;
 	onClose: () => void;
 }
 
-const AddRecipeModal = ({ possibleItems, onSave, onClose }: AddRecipeModalProps) => {
+const AddRecipeModal = ({ possibleItems, storeSections, onSave, onClose }: AddRecipeModalProps) => {
 	const [recipeName, setRecipeName] = useState("");
 	const [recipeItems, setRecipeItems] = useState<Item[]>([]);
 	const [isSaving, setIsSaving] = useState(false);
@@ -828,9 +1067,9 @@ const AddRecipeModal = ({ possibleItems, onSave, onClose }: AddRecipeModalProps)
 			.sort((a, b) => {
 				const categoryA = a.category || "unknown";
 				const categoryB = b.category || "unknown";
-				return sortOrder.indexOf(categoryA) - sortOrder.indexOf(categoryB);
+				return storeSections.indexOf(categoryA) - storeSections.indexOf(categoryB);
 			});
-	}, [possibleItems, recipeItems]);
+	}, [possibleItems, recipeItems, storeSections]);
 
 	// Group recipe items by category for display
 	const recipeItemsByCategory = useMemo(() => {
@@ -870,7 +1109,7 @@ const AddRecipeModal = ({ possibleItems, onSave, onClose }: AddRecipeModalProps)
 							{recipeItems.length === 0 ? (
 								<p className="empty-message">Add items from the right panel</p>
 							) : (
-								sortOrder.map(category => {
+								storeSections.map(category => {
 									const items = recipeItemsByCategory[category];
 									if (!items || items.length === 0) return null;
 									return (
@@ -893,7 +1132,7 @@ const AddRecipeModal = ({ possibleItems, onSave, onClose }: AddRecipeModalProps)
 
 						<div className="available-items-list">
 							<h3>Available Items</h3>
-							{sortOrder.map(category => (
+							{storeSections.map(category => (
 								<CustomItem key={category} onChange={addItemToRecipe} category={category} />
 							))}
 							{availableItems.map(item => (

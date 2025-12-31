@@ -388,3 +388,127 @@ input[type=text] {
     flex-direction: column;
   }
 }
+
+/* Section management styles */
+.section-row {
+  display: flex;
+  gap: 0.5em;
+  float: left;
+}
+
+.section-row .available-item {
+  flex: 1;
+}
+
+.draggable-section {
+  cursor: grab;
+  user-select: none;
+  display: flex;
+  align-items: center;
+  gap: 0.5em;
+}
+
+.draggable-section:active {
+  cursor: grabbing;
+}
+
+.draggable-section.dragging {
+  opacity: 0.5;
+  background-color: #d0e0ff;
+}
+
+.draggable-section.drag-over {
+  border-color: #646cff;
+  border-width: 2px;
+  background-color: #e8f0ff;
+}
+
+.section-delete {
+  width: 5em;
+  height: 5em;
+  background-color: transparent;
+  border: 1px solid #ddd;
+  color: #999;
+  font-size: 1.2em;
+  float: none;
+  margin: 5px 5px 5px 0;
+}
+
+.section-delete:hover {
+  background-color: #ffcccc;
+  color: #c00;
+  border-color: #c00;
+}
+
+.add-section-button {
+  width: max(min(20em, calc(100vw/2 - 1.2em)), 8em);
+  height: 5em;
+  background-color: #f0f0f0;
+  border: 2px dashed #ccc;
+  float: left;
+  margin: 5px;
+}
+
+.add-section-button:hover {
+  background-color: #e8e8e8;
+  border-color: #999;
+}
+
+.add-section-form {
+  display: flex;
+  gap: 0.5em;
+  align-items: center;
+  float: left;
+  margin: 5px;
+}
+
+.add-section-form input {
+  height: 3em;
+}
+
+.add-section-form button {
+  width: auto;
+  height: 3em;
+  padding: 0 1em;
+}
+
+/* Delete section modal */
+.delete-section-modal {
+  max-width: 400px;
+}
+
+.delete-section-modal .modal-body p {
+  margin: 0.5em 0;
+}
+
+.delete-items-checkbox {
+  display: flex;
+  align-items: center;
+  gap: 0.5em;
+  margin-top: 1em;
+  padding: 0.5em;
+  background-color: #fff8e8;
+  border: 1px solid #e0d0a0;
+  border-radius: 4px;
+  width: 100%;
+  height: auto;
+  float: none;
+  cursor: pointer;
+}
+
+.delete-items-checkbox input[type="checkbox"] {
+  display: inline-block;
+  width: 1.2em;
+  height: 1.2em;
+}
+
+.delete-button {
+  background-color: #dc3545;
+  color: white;
+  border-color: #dc3545;
+}
+
+.delete-button:hover {
+  background-color: #c82333;
+  border-color: #bd2130;
+}

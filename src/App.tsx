@@ -6,11 +6,19 @@ export interface Item {
 	name: string;
 	status?: "need" | "carted";
 	category?: string;
+	recipes?: string[];      // Recipe names this item belongs to; empty/missing = "default items"
 	dateAdded?: string;      // ISO string
 	lastUpdated?: string;    // ISO string
 	deleted?: boolean;
 	deletedAt?: string;      // ISO string
 };
+
+export interface OptionsData {
+	items: Item[];
+	recipeOrder: string[];   // Ordered list of recipe names
+}
+
+const DEFAULT_RECIPE = "default items";
 
 const DEFAULT_DATE = "1970-01-01T00:00:00Z";
 
@@ -48,14 +56,32 @@ export default function App() {
 	const [currentList, setCurrentList] = useState<Item[]>([]);
 	const [force, setForce] = useState<boolean>(false);
 	const [possibleItems, setPossibleItems] = useState<Item[]>([]);
+	const [recipeOrder, setRecipeOrder] = useState<string[]>([]);
 	const [isLoading, setIsLoading] = useState<boolean>(true);
 	const [isRemoving, setIsRemoving] = useState<boolean>(false);
 	const [isSaving, setIsSaving] = useState<boolean>(false);
 	const [isErrorSaving, setErrorSaving] = useState<boolean>(false);
+	const [showAddRecipeModal, setShowAddRecipeModal] = useState<boolean>(false);
 	const listName = window.location.hash.slice(1) || "default-list";
+	// If we're on an -options list, use it directly; otherwise append -options
+	const optionsListName = listName.endsWith('-options') ? listName : `${listName}-options`;
 
 	const activeItems = useMemo(() => currentList.filter(item => !item.deleted),
 		[currentList]);
+
+	// Union of items from currentList and possibleItems (for recipe modal)
+	const allAvailableItems = useMemo(() => {
+		const itemMap = new Map<string, Item>();
+		// Add possibleItems first
+		possibleItems.forEach(item => itemMap.set(item.name, item));
+		// Add activeItems (currentList items override if same name)
+		activeItems.forEach(item => {
+			if (!itemMap.has(item.name)) {
+				itemMap.set(item.name, item);
+			}
+		});
+		return Array.from(itemMap.values());
+	}, [possibleItems, activeItems]);
 
 	const fetchListData = async (listName: string): Promise<Item[]> => {
 		const res = await fetch(`/api/state/${listName}`);
@@ -73,7 +99,37 @@ export default function App() {
 		} catch {
 			return [];
 		}
+	};
 
+	const fetchOptionsData = async (): Promise<OptionsData> => {
+		const res = await fetch(`/api/state/${optionsListName}`);
+		const data = await res.json().catch(() => ({}));
+		const typedData = data as { value: string };
+
+		try {
+			const parsed = typedData.value ? JSON.parse(typedData.value) : {};
+			// Backwards compatibility: if it's an array, treat as items with no recipes
+			if (Array.isArray(parsed)) {
+				return {
+					items: parsed.map((item: Item) => ({
+						...item,
+						dateAdded: item.dateAdded || DEFAULT_DATE,
+						lastUpdated: item.lastUpdated || DEFAULT_DATE,
+					})),
+					recipeOrder: []
+				};
+			}
+			return {
+				items: (parsed.items || []).map((item: Item) => ({
+					...item,
+					dateAdded: item.dateAdded || DEFAULT_DATE,
+					lastUpdated: item.lastUpdated || DEFAULT_DATE,
+				})),
+				recipeOrder: parsed.recipeOrder || []
+			};
+		} catch {
+			return { items: [], recipeOrder: [] };
+		}
 	};
 
 	// Load initial state:
@@ -81,10 +137,18 @@ export default function App() {
 		const loadData = async () => {
 			if (['default-list', 'default-list-options'].includes(listName)) {
 				setIsLoading(false);
-				return [];
+				return;
 			}
-			setCurrentList(await fetchListData(listName));
-			setPossibleItems(await fetchListData(`${listName}-options`));
+
+			// Load both the current list and options list
+			const [currentListData, optionsData] = await Promise.all([
+				fetchListData(listName),
+				fetchOptionsData()
+			]);
+
+			setCurrentList(currentListData);
+			setPossibleItems(optionsData.items);
+			setRecipeOrder(optionsData.recipeOrder);
 			setIsLoading(false);
 		};
 
@@ -136,6 +200,61 @@ export default function App() {
 	};
 
 	const getNow = () => new Date().toISOString();
+
+	const saveOptionsData = async (items: Item[], recipes: string[]) => {
+		const optionsData: OptionsData = { items, recipeOrder: recipes };
+		await fetch(`/api/state/${optionsListName}`, {
+			method: 'PUT',
+			headers: { 'Content-Type': 'application/json' },
+			body: JSON.stringify({ value: JSON.stringify(optionsData) })
+		});
+		setPossibleItems(items);
+		setRecipeOrder(recipes);
+	};
+
+	const addRecipe = async (recipeName: string, recipeItems: Item[]) => {
+		// Add recipe to the order
+		const newRecipeOrder = [...recipeOrder, recipeName];
+
+		// Update possibleItems with recipe assignments
+		const updatedItems = [...possibleItems];
+		for (const recipeItem of recipeItems) {
+			const existingIndex = updatedItems.findIndex(i => i.name === recipeItem.name);
+			if (existingIndex >= 0) {
+				// Item exists in options, add recipe to its recipes array
+				const existing = updatedItems[existingIndex];
+				const recipes = existing.recipes || [];
+				if (!recipes.includes(recipeName)) {
+					updatedItems[existingIndex] = {
+						...existing,
+						recipes: [...recipes, recipeName]
+					};
+				}
+			} else {
+				// Item might be from currentList or new - add to options with recipe
+				updatedItems.push({
+					...recipeItem,
+					recipes: [recipeName]
+				});
+			}
+		}
+
+		await saveOptionsData(updatedItems, newRecipeOrder);
+	};
+
+	const deleteRecipe = async (recipeName: string) => {
+		// Remove recipe from the order
+		const newRecipeOrder = recipeOrder.filter(r => r !== recipeName);
+
+		// Remove recipe from all items in possibleItems
+		const updatedItems = possibleItems.map(item => {
+			if (!item.recipes?.includes(recipeName)) return item;
+			const newRecipes = item.recipes.filter(r => r !== recipeName);
+			return { ...item, recipes: newRecipes };
+		});
+
+		await saveOptionsData(updatedItems, newRecipeOrder);
+	};
 
 	const pruneList = () => {
 		const now = getNow();
@@ -262,7 +381,17 @@ export default function App() {
 				onAddItem={addItemByName}
 				possibleItems={possibleItems}
 				activeItemNames={itemNamesOnList}
+				recipeOrder={recipeOrder}
+				onAddRecipeClick={() => setShowAddRecipeModal(true)}
+				onDeleteRecipe={deleteRecipe}
 			/>
+			{showAddRecipeModal && (
+				<AddRecipeModal
+					possibleItems={allAvailableItems}
+					onSave={addRecipe}
+					onClose={() => setShowAddRecipeModal(false)}
+				/>
+			)}
 		</div >
 	);
 }
@@ -271,17 +400,43 @@ interface AddItemsProps {
 	onAddItem: (itemName: string, category?: string) => void;
 	possibleItems: Item[];
 	activeItemNames: string[];
+	recipeOrder: string[];
+	onAddRecipeClick: () => void;
+	onDeleteRecipe: (recipeName: string) => Promise<void>;
 }
 
-const AddItems = memo(({ onAddItem, possibleItems, activeItemNames }: AddItemsProps) => {
-	const availableToAdd = useMemo(() => {
-		const result = possibleItems.filter((item) => !activeItemNames.includes(item.name)).sort((a, b) => {
-			const categoryA = a.category || "unknown";
-			const categoryB = b.category || "unknown";
-			return sortOrder.indexOf(categoryA) - sortOrder.indexOf(categoryB);
-		});
-		return result;
+// Check if an item should appear in Standard Items (default items)
+const isDefaultItem = (item: Item): boolean => {
+	// No recipes array or empty array = default item (backwards compatible)
+	if (!item.recipes || item.recipes.length === 0) return true;
+	// Explicitly in "default items"
+	return item.recipes.includes(DEFAULT_RECIPE);
+};
+
+const AddItems = memo(({ onAddItem, possibleItems, activeItemNames, recipeOrder, onAddRecipeClick, onDeleteRecipe }: AddItemsProps) => {
+	const [expandedRecipe, setExpandedRecipe] = useState<string | null>(null);
+
+	// Standard items: default items not already on the list
+	const standardItems = useMemo(() => {
+		return possibleItems
+			.filter((item) => isDefaultItem(item) && !activeItemNames.includes(item.name))
+			.sort((a, b) => {
+				const categoryA = a.category || "unknown";
+				const categoryB = b.category || "unknown";
+				return sortOrder.indexOf(categoryA) - sortOrder.indexOf(categoryB);
+			});
 	}, [possibleItems, activeItemNames]);
+
+	// Get items for a specific recipe
+	const getRecipeItems = (recipeName: string) => {
+		return possibleItems
+			.filter((item) => item.recipes?.includes(recipeName))
+			.sort((a, b) => {
+				const categoryA = a.category || "unknown";
+				const categoryB = b.category || "unknown";
+				return sortOrder.indexOf(categoryA) - sortOrder.indexOf(categoryB);
+			});
+	};
 
 	return (
 		<>
@@ -293,7 +448,7 @@ const AddItems = memo(({ onAddItem, possibleItems, activeItemNames }: AddItemsPr
 			}
 			<h3>Standard items</h3>
 			{
-				availableToAdd.map((item) => (
+				standardItems.map((item) => (
 					<AvailableItem
 						key={`available-${item.name}`}
 						item={item}
@@ -301,6 +456,52 @@ const AddItems = memo(({ onAddItem, possibleItems, activeItemNames }: AddItemsPr
 					/>
 				))
 			}
+			<h3>Recipes</h3>
+			{recipeOrder.map((recipeName) => {
+				const isExpanded = expandedRecipe === recipeName;
+				const recipeItems = getRecipeItems(recipeName);
+				return (
+					<div key={recipeName} className="recipe-section">
+						<div className="recipe-header-row">
+							<button
+								className="recipe-header"
+								onClick={() => setExpandedRecipe(isExpanded ? null : recipeName)}
+							>
+								<span className="recipe-toggle">{isExpanded ? '▾' : '▸'}</span>
+								{recipeName}
+								<span className="recipe-count">({recipeItems.length})</span>
+							</button>
+							<button
+								className="recipe-delete"
+								onClick={(e) => {
+									e.stopPropagation();
+									if (confirm(`Delete recipe "${recipeName}"?`)) {
+										onDeleteRecipe(recipeName);
+									}
+								}}
+								title="Delete recipe"
+							>
+								&times;
+							</button>
+						</div>
+						{isExpanded && (
+							<div className="recipe-items">
+								{recipeItems.map((item) => (
+									<AvailableItem
+										key={`recipe-${recipeName}-${item.name}`}
+										item={item}
+										onChange={onAddItem}
+										className={activeItemNames.includes(item.name) ? 'already-added' : ''}
+									/>
+								))}
+							</div>
+						)}
+					</div>
+				);
+			})}
+			<button className="add-recipe-button" onClick={onAddRecipeClick}>
+				+ Add Recipe
+			</button>
 		</>
 	);
 });
@@ -395,5 +596,140 @@ const CustomItem = ({ onChange, category }: CustomItemProps) => {
 
 	return (
 		<button onClick={() => setIsEditing(true)} className="available-item custom">{category}</button>
+	);
+};
+
+interface AddRecipeModalProps {
+	possibleItems: Item[];
+	onSave: (recipeName: string, items: Item[]) => Promise<void>;
+	onClose: () => void;
+}
+
+const AddRecipeModal = ({ possibleItems, onSave, onClose }: AddRecipeModalProps) => {
+	const [recipeName, setRecipeName] = useState("");
+	const [recipeItems, setRecipeItems] = useState<Item[]>([]);
+	const [isSaving, setIsSaving] = useState(false);
+	const nameInputRef = useRef<HTMLInputElement>(null);
+
+	useEffect(() => {
+		nameInputRef.current?.focus();
+	}, []);
+
+	const addItemToRecipe = (itemName: string, category?: string) => {
+		if (recipeItems.some(i => i.name === itemName)) return;
+		setRecipeItems([...recipeItems, { name: itemName, category }]);
+	};
+
+	const removeItemFromRecipe = (itemName: string) => {
+		setRecipeItems(recipeItems.filter(i => i.name !== itemName));
+	};
+
+	const handleSave = async () => {
+		if (!recipeName.trim() || recipeItems.length === 0) return;
+		setIsSaving(true);
+		await onSave(recipeName.trim(), recipeItems);
+		setIsSaving(false);
+		onClose();
+	};
+
+	// Items available to add (from possibleItems, excluding already added)
+	const availableItems = useMemo(() => {
+		const addedNames = recipeItems.map(i => i.name);
+		return possibleItems
+			.filter(item => !addedNames.includes(item.name))
+			.sort((a, b) => {
+				const categoryA = a.category || "unknown";
+				const categoryB = b.category || "unknown";
+				return sortOrder.indexOf(categoryA) - sortOrder.indexOf(categoryB);
+			});
+	}, [possibleItems, recipeItems]);
+
+	// Group recipe items by category for display
+	const recipeItemsByCategory = useMemo(() => {
+		const grouped: { [category: string]: Item[] } = {};
+		recipeItems.forEach(item => {
+			const category = item.category || "unknown";
+			if (!grouped[category]) grouped[category] = [];
+			grouped[category].push(item);
+		});
+		return grouped;
+	}, [recipeItems]);
+
+	return (
+		<div className="modal-overlay" onClick={onClose}>
+			<div className="modal-content" onClick={e => e.stopPropagation()}>
+				<div className="modal-header">
+					<h2>Add Recipe</h2>
+					<button className="modal-close" onClick={onClose}>&times;</button>
+				</div>
+
+				<div className="modal-body">
+					<div className="recipe-name-input">
+						<label htmlFor="recipe-name">Recipe Name</label>
+						<input
+							ref={nameInputRef}
+							id="recipe-name"
+							type="text"
+							value={recipeName}
+							onChange={e => setRecipeName((e.target as HTMLInputElement).value)}
+							placeholder="e.g., Sausage with Roasted Veggies"
+						/>
+					</div>
+
+					<div className="recipe-editor">
+						<div className="recipe-items-list">
+							<h3>Recipe Items ({recipeItems.length})</h3>
+							{recipeItems.length === 0 ? (
+								<p className="empty-message">Add items from the right panel</p>
+							) : (
+								sortOrder.map(category => {
+									const items = recipeItemsByCategory[category];
+									if (!items || items.length === 0) return null;
+									return (
+										<Fragment key={category}>
+											<h4 className="recipe-category">{category}</h4>
+											{items.map(item => (
+												<button
+													key={item.name}
+													className="available-item removable-item"
+													onClick={() => removeItemFromRecipe(item.name)}
+												>
+													{item.name}
+												</button>
+											))}
+										</Fragment>
+									);
+								})
+							)}
+						</div>
+
+						<div className="available-items-list">
+							<h3>Available Items</h3>
+							{sortOrder.map(category => (
+								<CustomItem key={category} onChange={addItemToRecipe} category={category} />
+							))}
+							{availableItems.map(item => (
+								<AvailableItem
+									key={item.name}
+									item={item}
+									onChange={addItemToRecipe}
+								/>
+							))}
+						</div>
+					</div>
+				</div>
+
+				<div className="modal-footer">
+					<button onClick={onClose} disabled={isSaving}>Cancel</button>
+					<button
+						onClick={handleSave}
+						disabled={!recipeName.trim() || recipeItems.length === 0 || isSaving}
+						className="save-button"
+					>
+						{isSaving ? "Saving..." : "Save Recipe"}
+					</button>
+				</div>
+			</div>
+		</div>
 	);
 };

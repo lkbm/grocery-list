@@ -74,11 +74,14 @@ Items are sorted by predefined store layout: unknown, produce, corner, bread, ca
 - Implements optimistic UI updates with server conflict resolution
 - Auto-saves every 2 seconds when list changes
 - Supports multiple concurrent users via timestamp-based merging
+- list, list-options, list-options-options, etc. are all just lists. Don't do special code for of a list name ends with -options.
 
 ## TODOs
-* Implement "recipe" pseudo-category for adding items from recipes.
-   - e.g., the "Sausage with Roasted Veggies" pseudo-category would include "kielbasa" (which is in the corner), "bell peppers" (in produce), "zucchini" (in produce), etc.
+* Deleted foo-option items should not be included in the default items.
+* Drag-and-drop to reorder items within a category. (or recipes, or in a recipe)
+* Make categories a creatable and re-arrangable object. They should be defined in list-options.
 * Maybe switch CSS to grid layout?
 * Import/export option?
-* Manual sorting option?
 * ListItem is a div-input, but AvailableItem and CustomItem are buttons. I'd like shared element types so the styles are more consistent.
+* Testing: KV requests don't work in local testing. How can we make it more easily testable?
+* Better CSS. I made it worse when I was getting it under 14kb, but we're not doing that anymore.

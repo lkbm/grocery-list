@@ -78,8 +78,7 @@ Items are sorted by user-defined store sections (stored in `storeSections` array
 
 ## TODOs
 * Deleted foo-option items should not be included in the default items.
-* Maybe switch CSS to grid layout?
 * Import/export option?
 * ListItem is a div-input, but AvailableItem and CustomItem are buttons. I'd like shared element types so the styles are more consistent.
 * Testing: KV requests don't work in local testing. How can we make it more easily testable?
-* Better CSS. I made it worse when I was getting it under 14kb, but we're not doing that anymore.
+* Less risk of clobbering list-options. A backup/restore to localstorage or something? idk, (*something* better than current.

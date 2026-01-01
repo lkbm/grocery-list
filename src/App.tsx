@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo, useRef } from 'preact/hooks';
+import { useState, useEffect, useMemo, useRef, useCallback } from 'preact/hooks';
 import { Fragment } from 'preact';
 import { memo } from 'preact/compat';
 
@@ -64,15 +64,75 @@ export default function App() {
 	const [isLoading, setIsLoading] = useState<boolean>(true);
 	const [isRemoving, setIsRemoving] = useState<boolean>(false);
 	const [isSorting, setIsSorting] = useState<boolean>(false);
+	const [collapsedCategories, setCollapsedCategories] = useState<Set<string>>(new Set());
+	const toggleCategoryCollapse = (category: string) => {
+		setCollapsedCategories(prev => {
+			const next = new Set(prev);
+			if (next.has(category)) {
+				next.delete(category);
+			} else {
+				next.add(category);
+			}
+			return next;
+		});
+	};
+	const [collapsedSections, setCollapsedSections] = useState({
+		currentList: false,
+		sections: false,
+		standardItems: false
+	});
+	const toggleSectionCollapse = (section: keyof typeof collapsedSections) => {
+		setCollapsedSections(prev => ({ ...prev, [section]: !prev[section] }));
+	};
 	const [isSaving, setIsSaving] = useState<boolean>(false);
 	const [isErrorSaving, setErrorSaving] = useState<boolean>(false);
 	const [showAddRecipeModal, setShowAddRecipeModal] = useState<boolean>(false);
+	const [skippedItems, setSkippedItems] = useState<string[]>([]);
+	const itemRefs = useRef<Map<string, HTMLElement>>(new Map());
+
+	const registerItemRef = useCallback((itemName: string, el: HTMLElement | null) => {
+		if (el) {
+			itemRefs.current.set(itemName, el);
+		} else {
+			itemRefs.current.delete(itemName);
+		}
+	}, []);
+
+	const scrollToTop = useCallback(() => {
+		window.scrollTo({ top: 0, behavior: 'smooth' });
+	}, []);
+
 	const listName = window.location.hash.slice(1) || "default-list";
 	// If we're on an -options list, use it directly; otherwise append -options
 	const optionsListName = listName.endsWith('-options') ? listName : `${listName}-options`;
 
 	const activeItems = useMemo(() => currentList.filter(item => !item.deleted),
 		[currentList]);
+
+	// Track skipped (unchecked) items above viewport
+	useEffect(() => {
+		const checkSkippedItems = () => {
+			const skipped: string[] = [];
+			activeItems.forEach(item => {
+				if (item.status !== 'carted') {
+					const element = itemRefs.current.get(item.name);
+					if (element) {
+						const rect = element.getBoundingClientRect();
+						// Item is above viewport (completely scrolled past)
+						if (rect.bottom < 0) {
+							skipped.push(item.name);
+						}
+					}
+				}
+			});
+			setSkippedItems(skipped);
+		};
+
+		window.addEventListener('scroll', checkSkippedItems, { passive: true });
+		checkSkippedItems(); // Initial check
+
+		return () => window.removeEventListener('scroll', checkSkippedItems);
+	}, [activeItems]);
 
 	// Effective sort order: stored sections + any new categories from items (backwards compatibility)
 	const effectiveSortOrder = useMemo(() => {
@@ -471,7 +531,8 @@ export default function App() {
 	if (isLoading) return <div>Loading...</div>;
 	const itemNamesOnList = activeItems.map((item) => item.name);
 	return (
-		<div>
+		<div className="grocery-app">
+			<SkippedItemsIndicator items={skippedItems} onScrollToTop={scrollToTop} />
 			<button onClick={pruneList}>
 				Prune Purchases
 			</button>
@@ -491,38 +552,59 @@ export default function App() {
 				{isSaving ? `Saving` : isErrorSaving ? `Error Saving!` : `Save List`}
 			</button>
 			<hr />
-			<h2>{isRemoving ? "Remove From " : isSorting ? "Drag to Reorder " : ""}Current List</h2>
-			{effectiveSortOrder.map(category => {
+			<button
+				className="collapsible-header"
+				onClick={() => toggleSectionCollapse('currentList')}
+			>
+				<span className="collapse-indicator">{collapsedSections.currentList ? '+' : '-'}</span>
+				{isRemoving ? "Remove From " : isSorting ? "Drag to Reorder " : ""}Current List
+				<span className="section-count">({activeItems.length} items)</span>
+			</button>
+			{!collapsedSections.currentList && effectiveSortOrder.map(category => {
 				const items = itemsByCategory[category];
 				if (!items || items.length === 0) return null;
+				const isCollapsed = collapsedCategories.has(category);
 
 				return (
 					<Fragment key={category}>
-						<h3 className={`category-title`}>{category}</h3>
-						{items.map((item, index) => (
-							<Fragment key={item.name}>
-								{isRemoving ? <AvailableItem
-									key={item.name}
-									item={item}
-									onChange={removeItemByName}
-									className={`removable-item ${item.status}`}
-								/>
-									: isSorting ? <DraggableItem
-										key={item.name}
-										item={item}
-										index={index}
-										category={category}
-										onReorder={reorderItem}
-									/>
-									: <ListItem
-										key={item.name}
-										item={item}
-										currentValue={item.status === "carted"}
-										toggleCurrentItems={toggleCurrentItem}
-									/>}
-							</Fragment>
-						))
-						}
+						<div className="category-header">
+							<button
+								className="category-pill"
+								onClick={() => toggleCategoryCollapse(category)}
+							>
+								<span className="collapse-indicator">{isCollapsed ? '+' : '-'}</span>
+								{category}
+								<span className="category-count">({items.length})</span>
+							</button>
+						</div>
+						{!isCollapsed && (
+							<div className="item-grid">
+								{items.map((item, index) => (
+									<Fragment key={item.name}>
+										{isRemoving ? <AvailableItem
+											key={item.name}
+											item={item}
+											onChange={removeItemByName}
+											className={`removable-item ${item.status}`}
+										/>
+											: isSorting ? <DraggableItem
+												key={item.name}
+												item={item}
+												index={index}
+												category={category}
+												onReorder={reorderItem}
+											/>
+											: <ListItem
+												key={item.name}
+												item={item}
+												currentValue={item.status === "carted"}
+												toggleCurrentItems={toggleCurrentItem}
+												registerRef={registerItemRef}
+											/>}
+									</Fragment>
+								))}
+							</div>
+						)}
 					</Fragment>
 				)
 			})}
@@ -540,6 +622,8 @@ export default function App() {
 				onReorderSection={reorderSection}
 				onAddSection={addSection}
 				onDeleteSection={deleteSection}
+				collapsedSections={collapsedSections}
+				onToggleSectionCollapse={toggleSectionCollapse}
 			/>
 			{showAddRecipeModal && (
 				<AddRecipeModal
@@ -566,6 +650,8 @@ interface AddItemsProps {
 	onReorderSection: (sectionName: string, newIndex: number) => void;
 	onAddSection: (sectionName: string) => void;
 	onDeleteSection: (sectionName: string, deleteItems: boolean) => Promise<void>;
+	collapsedSections: { sections: boolean; standardItems: boolean };
+	onToggleSectionCollapse: (section: 'sections' | 'standardItems') => void;
 }
 
 // Check if an item should appear in Standard Items (default items)
@@ -576,7 +662,7 @@ const isDefaultItem = (item: Item): boolean => {
 	return item.recipes.includes(DEFAULT_RECIPE);
 };
 
-const AddItems = memo(({ onAddItem, possibleItems, activeItemNames, recipeOrder, storeSections, onAddRecipeClick, onDeleteRecipe, isSorting, onReorderRecipe, onReorderSection, onAddSection, onDeleteSection }: AddItemsProps) => {
+const AddItems = memo(({ onAddItem, possibleItems, activeItemNames, recipeOrder, storeSections, onAddRecipeClick, onDeleteRecipe, isSorting, onReorderRecipe, onReorderSection, onAddSection, onDeleteSection, collapsedSections, onToggleSectionCollapse }: AddItemsProps) => {
 	const [expandedRecipe, setExpandedRecipe] = useState<string | null>(null);
 	const [draggingRecipe, setDraggingRecipe] = useState<string | null>(null);
 	const [dragOverRecipe, setDragOverRecipe] = useState<string | null>(null);
@@ -674,68 +760,86 @@ const AddItems = memo(({ onAddItem, possibleItems, activeItemNames, recipeOrder,
 
 	return (
 		<>
-			<h2>{isSorting ? "Drag to Reorder " : ""}Sections</h2>
-			{
-				storeSections.map((category, index) => {
-					const isDragging = draggingSection === category;
-					const isDragOver = dragOverSection === category;
+			<button
+				className="collapsible-header"
+				onClick={() => onToggleSectionCollapse('sections')}
+			>
+				<span className="collapse-indicator">{collapsedSections.sections ? '+' : '-'}</span>
+				{isSorting ? "Drag to Reorder " : ""}Sections
+				<span className="section-count">({storeSections.length})</span>
+			</button>
+			{!collapsedSections.sections && (
+				<div className="item-grid">
+					{storeSections.map((category, index) => {
+						const isDragging = draggingSection === category;
+						const isDragOver = dragOverSection === category;
 
-					return isSorting ? (
-						<div key={category} className="section-row">
-							<button
-								className={`available-item custom draggable-section ${isDragging ? 'dragging' : ''} ${isDragOver ? 'drag-over' : ''}`}
-								draggable
-								onDragStart={handleSectionDragStart(category, index)}
-								onDragEnd={handleSectionDragEnd}
-								onDragOver={handleSectionDragOver(category)}
-								onDragLeave={handleSectionDragLeave}
-								onDrop={handleSectionDrop(index)}
-							>
-								<span className="drag-handle">⋮⋮</span>
-								{category}
+						return isSorting ? (
+							<div key={category} className="section-row">
+								<button
+									className={`available-item custom draggable-section ${isDragging ? 'dragging' : ''} ${isDragOver ? 'drag-over' : ''}`}
+									draggable
+									onDragStart={handleSectionDragStart(category, index)}
+									onDragEnd={handleSectionDragEnd}
+									onDragOver={handleSectionDragOver(category)}
+									onDragLeave={handleSectionDragLeave}
+									onDrop={handleSectionDrop(index)}
+								>
+									<span className="drag-handle">⋮⋮</span>
+									{category}
+								</button>
+								<button
+									className="section-delete"
+									onClick={() => setDeletingSectionName(category)}
+									title="Delete section"
+								>
+									&times;
+								</button>
+							</div>
+						) : (
+							<CustomItem key={category} onChange={onAddItem} category={category} />
+						);
+					})}
+					{isSorting && (
+						isAddingSection ? (
+							<form onSubmit={handleAddSectionSubmit} className="add-section-form">
+								<input
+									ref={newSectionInputRef}
+									type="text"
+									value={newSectionName}
+									onChange={(e) => setNewSectionName((e.target as HTMLInputElement).value)}
+									placeholder="Section name"
+								/>
+								<button type="submit">Add</button>
+								<button type="button" onClick={() => { setIsAddingSection(false); setNewSectionName(""); }}>Cancel</button>
+							</form>
+						) : (
+							<button className="add-section-button" onClick={() => setIsAddingSection(true)}>
+								+ Add Section
 							</button>
-							<button
-								className="section-delete"
-								onClick={() => setDeletingSectionName(category)}
-								title="Delete section"
-							>
-								&times;
-							</button>
-						</div>
-					) : (
-						<CustomItem key={category} onChange={onAddItem} category={category} />
-					);
-				})
-			}
-			{isSorting && (
-				isAddingSection ? (
-					<form onSubmit={handleAddSectionSubmit} className="add-section-form">
-						<input
-							ref={newSectionInputRef}
-							type="text"
-							value={newSectionName}
-							onChange={(e) => setNewSectionName((e.target as HTMLInputElement).value)}
-							placeholder="Section name"
-						/>
-						<button type="submit">Add</button>
-						<button type="button" onClick={() => { setIsAddingSection(false); setNewSectionName(""); }}>Cancel</button>
-					</form>
-				) : (
-					<button className="add-section-button" onClick={() => setIsAddingSection(true)}>
-						+ Add Section
-					</button>
-				)
+						)
+					)}
+				</div>
 			)}
-			<h3>Standard items</h3>
-			{
-				standardItems.map((item) => (
-					<AvailableItem
-						key={`available-${item.name}`}
-						item={item}
-						onChange={onAddItem}
-					/>
-				))
-			}
+			<button
+				className="collapsible-header"
+				onClick={() => onToggleSectionCollapse('standardItems')}
+			>
+				<span className="collapse-indicator">{collapsedSections.standardItems ? '+' : '-'}</span>
+				Standard Items
+				<span className="section-count">({standardItems.length})</span>
+			</button>
+			{!collapsedSections.standardItems && (
+				<div className="item-grid">
+					{standardItems.map((item) => (
+						<AvailableItem
+							key={`available-${item.name}`}
+							item={item}
+							onChange={onAddItem}
+						/>
+					))}
+				</div>
+			)}
 			<h3>{isSorting ? "Drag to Reorder " : ""}Recipes</h3>
 			{recipeOrder.map((recipeName, index) => {
 				const isExpanded = expandedRecipe === recipeName;
@@ -865,15 +969,40 @@ const AddItems = memo(({ onAddItem, possibleItems, activeItemNames, recipeOrder,
 	);
 });
 
+interface SkippedItemsIndicatorProps {
+	items: string[];
+	onScrollToTop: () => void;
+}
+
+const SkippedItemsIndicator = ({ items, onScrollToTop }: SkippedItemsIndicatorProps) => {
+	if (items.length === 0) return null;
+
+	const displayText = items.length <= 3
+		? items.join(', ')
+		: `${items.slice(0, 3).join(', ')} +${items.length - 3}`;
+
+	return (
+		<button
+			className="skipped-indicator"
+			onClick={onScrollToTop}
+			aria-label={`${items.length} unchecked items above. Click to scroll up.`}
+		>
+			<span className="skipped-arrow">^</span>
+			<span className="skipped-text">{displayText}</span>
+		</button>
+	);
+};
+
 interface ListItemProps {
 	toggleCurrentItems: (itemName: string) => void;
 	currentValue: boolean;
 	item: Item;
+	registerRef?: (itemName: string, el: HTMLElement | null) => void;
 }
 
-const ListItem = ({ item, currentValue, toggleCurrentItems }: ListItemProps) => {
+const ListItem = ({ item, currentValue, toggleCurrentItems, registerRef }: ListItemProps) => {
 	return (
-		<div>
+		<div ref={el => registerRef?.(item.name, el)}>
 			<input
 				type="checkbox"
 				checked={currentValue}

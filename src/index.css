@@ -1,3 +1,22 @@
+/* Grid layout containers */
+.grocery-app {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));
+  gap: 8px;
+  padding: 5px;
+}
+
+.item-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));
+  gap: 8px;
+  grid-column: 1 / -1;
+}
+
+.full-width {
+  grid-column: 1 / -1;
+}
+
 button,
 label {
   border: 1px solid #c0c0c0;
@@ -5,11 +24,8 @@ label {
   font-size: 1em;
   cursor: pointer;
   transition: border-color 0.25s;
-  float: left;
-  width: max(min(20em, calc(100vw/2 - 1.2em)), 8em);
   box-sizing: border-box;
-  margin: 5px;
-  height: 5em;
+  min-height: max(5em, 48px); /* Ensure 48px minimum for touch */
   align-items: center;
   display: flex;
   justify-content: center;
@@ -39,7 +55,11 @@ input[type="checkbox"]:checked + label {
 }
 
 hr {
-  clear: both;
+  grid-column: 1 / -1;
+  width: 100%;
+  border: none;
+  border-top: 1px solid #e0e0e0;
+  margin: 0.5em 0;
 }
 
 .saving {
@@ -64,8 +84,9 @@ hr {
   background-color: #ddf0dd;
 }
 
-h3 {
-  clear: both;
+h2, h3 {
+  grid-column: 1 / -1;
+  margin: 0.5em 0;
 }
 
 .custom {
@@ -135,34 +156,147 @@ input[type=text] {
   }
 }
 
-.category-title {
-  float: left;
-  transform: rotate(-90deg) translateX(-3.5em);
-  margin: -.5em;
+/* Sticky category pills - replaces rotated text */
+.category-header {
+  position: sticky;
+  top: 0;
+  z-index: 100;
+  background: linear-gradient(to bottom, #ffffff 0%, #ffffff 85%, transparent 100%);
+  padding: 8px 0;
+  grid-column: 1 / -1;
+}
+
+.category-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  background: #e8e8f8;
+  border: 1px solid #c0c0c0;
+  border-radius: 16px;
+  padding: 6px 16px;
+  font-size: 0.85em;
+  font-weight: 500;
+  text-transform: capitalize;
+  cursor: pointer;
+  min-height: auto;
+  width: auto;
+}
+
+.category-pill:hover {
+  background: #d8d8f0;
+  border-color: #646cff;
+}
+
+.collapse-indicator {
+  font-family: monospace;
+  font-size: 0.9em;
+}
+
+.category-count {
+  opacity: 0.6;
+  font-size: 0.9em;
+}
+
+/* Collapsible section headers */
+.collapsible-header {
+  grid-column: 1 / -1;
+  display: flex;
+  align-items: center;
+  justify-content: flex-start;
+  gap: 8px;
+  width: 100%;
+  padding: 8px 12px;
+  background-color: #f0f0f0;
+  border: 1px solid #d0d0d0;
+  border-radius: 4px;
+  cursor: pointer;
+  text-align: left;
+  min-height: auto;
+  margin: 8px 0;
+  font-size: 1.1em;
+  font-weight: 500;
+}
+
+.collapsible-header:hover {
+  background-color: #e8e8e8;
+}
+
+/* Recipe header - uses category-pill style */
+.recipe-header {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  background: #e8e8f8;
+  border: 1px solid #c0c0c0;
+  border-radius: 16px;
+  padding: 6px 16px;
+  font-size: 0.85em;
+  font-weight: 500;
+  cursor: pointer;
+  min-height: auto;
+  width: auto;
+}
+
+.recipe-header:hover {
+  background: #d8d8f0;
+  border-color: #646cff;
+}
+
+.collapsible-header .collapse-indicator {
+  font-family: monospace;
+  font-size: 0.9em;
   width: 1em;
+}
+
+.collapsible-header .section-count {
+  opacity: 0.6;
+  margin-left: auto;
+  font-weight: normal;
+}
+
+/* Skipped items indicator */
+.skipped-indicator {
+  position: fixed;
+  top: 8px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 200;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  background: rgba(255, 255, 240, 0.95);
+  border: 1px solid #c0a040;
+  border-radius: 20px;
+  padding: 6px 16px;
+  font-size: 0.75em;
+  white-space: nowrap;
+  max-width: calc(100vw - 32px);
+  overflow: hidden;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.15);
+  cursor: pointer;
+  width: auto;
+  min-height: auto;
+}
+
+.skipped-indicator:hover {
+  background: rgba(255, 255, 200, 1);
+  border-color: #a08020;
+}
+
+.skipped-arrow {
+  font-size: 1.2em;
+  line-height: 1;
+}
+
+.skipped-text {
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 /* Recipe sections */
 .recipe-section {
-  clear: both;
-  margin: 0.5em 0;
-}
-
-.recipe-header {
-  width: 100%;
-  height: 3em;
-  display: flex;
-  align-items: center;
-  justify-content: flex-start;
-  gap: 0.5em;
-  padding: 0 1em;
-  background-color: #e8e8f8;
-  cursor: pointer;
-  float: none;
-}
-
-.recipe-header:hover {
-  background-color: #d8d8f0;
+  grid-column: 1 / -1;
+  margin: 8px 0;
 }
 
 .recipe-header.dragging {
@@ -186,22 +320,15 @@ input[type=text] {
 .recipe-header-row {
   display: flex;
   gap: 0.5em;
-  clear: both;
-}
-
-.recipe-header-row .recipe-header {
-  flex: 1;
 }
 
 .recipe-delete {
   width: 3em;
-  height: 3em;
+  min-height: 3em;
   background-color: transparent;
   border: 1px solid #ddd;
   color: #999;
   font-size: 1.2em;
-  float: none;
-  margin: 0;
 }
 
 .recipe-delete:hover {
@@ -211,7 +338,8 @@ input[type=text] {
 }
 
 .recipe-toggle {
-  font-size: 0.8em;
+  font-family: monospace;
+  font-size: 0.9em;
   width: 1em;
 }
 
@@ -223,7 +351,9 @@ input[type=text] {
 
 .recipe-items {
   padding: 0.5em 0 0.5em 1em;
-  clear: both;
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));
+  gap: 8px;
 }
 
 .recipe-items .available-item.already-added {
@@ -232,11 +362,10 @@ input[type=text] {
 }
 
 .add-recipe-button {
-  width: 100%;
-  height: 3em;
+  grid-column: 1 / -1;
+  min-height: 3em;
   background-color: #f0f0f0;
   border: 2px dashed #ccc;
-  float: none;
   margin-top: 0.5em;
 }
 
@@ -284,13 +413,11 @@ input[type=text] {
 
 .modal-close {
   width: 2em;
-  height: 2em;
+  min-height: 2em;
   border: none;
   background: none;
   font-size: 1.5em;
   cursor: pointer;
-  float: none;
-  margin: 0;
 }
 
 .modal-body {
@@ -309,8 +436,7 @@ input[type=text] {
   font-weight: bold;
   border: none;
   width: auto;
-  height: auto;
-  float: none;
+  min-height: auto;
   cursor: default;
 }
 
@@ -330,6 +456,10 @@ input[type=text] {
 .available-items-list {
   flex: 1;
   min-width: 0;
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(10em, 1fr));
+  gap: 8px;
+  align-content: start;
 }
 
 .recipe-items-list {
@@ -341,11 +471,10 @@ input[type=text] {
 .recipe-items-list h3,
 .available-items-list h3 {
   margin-top: 0;
-  clear: none;
 }
 
 .recipe-category {
-  clear: both;
+  grid-column: 1 / -1;
   font-size: 0.9em;
   color: #666;
   margin: 0.5em 0;
@@ -366,9 +495,8 @@ input[type=text] {
 
 .modal-footer button {
   width: auto;
-  height: auto;
+  min-height: auto;
   padding: 0.5em 1em;
-  float: none;
 }
 
 .modal-footer .save-button {
@@ -393,7 +521,6 @@ input[type=text] {
 .section-row {
   display: flex;
   gap: 0.5em;
-  float: left;
 }
 
 .section-row .available-item {
@@ -425,13 +552,11 @@ input[type=text] {
 
 .section-delete {
   width: 5em;
-  height: 5em;
+  min-height: 5em;
   background-color: transparent;
   border: 1px solid #ddd;
   color: #999;
   font-size: 1.2em;
-  float: none;
-  margin: 5px 5px 5px 0;
 }
 
 .section-delete:hover {
@@ -441,12 +566,8 @@ input[type=text] {
 }
 
 .add-section-button {
-  width: max(min(20em, calc(100vw/2 - 1.2em)), 8em);
-  height: 5em;
   background-color: #f0f0f0;
   border: 2px dashed #ccc;
-  float: left;
-  margin: 5px;
 }
 
 .add-section-button:hover {
@@ -458,8 +579,6 @@ input[type=text] {
   display: flex;
   gap: 0.5em;
   align-items: center;
-  float: left;
-  margin: 5px;
 }
 
 .add-section-form input {
@@ -491,8 +610,7 @@ input[type=text] {
   border: 1px solid #e0d0a0;
   border-radius: 4px;
   width: 100%;
-  height: auto;
-  float: none;
+  min-height: auto;
   cursor: pointer;
 }
 
@@ -511,4 +629,65 @@ input[type=text] {
 .delete-button:hover {
   background-color: #c82333;
   border-color: #bd2130;
+}
+
+/* Responsive breakpoints */
+@media (max-width: 480px) {
+  .grocery-app,
+  .item-grid,
+  .recipe-items {
+    grid-template-columns: repeat(2, 1fr); /* Always 2 columns on mobile */
+    gap: 6px;
+  }
+
+  button,
+  label {
+    min-height: 3em;
+    font-size: 0.85em;
+    padding: 4px;
+  }
+
+  .skipped-indicator {
+    font-size: 0.7em;
+    padding: 4px 12px;
+  }
+
+  .category-pill {
+    padding: 6px 10px;
+    font-size: 0.8em;
+  }
+
+  .collapsible-header {
+    padding: 6px 10px;
+    font-size: 0.95em;
+  }
+}
+
+@media (min-width: 481px) and (max-width: 768px) {
+  .grocery-app,
+  .item-grid,
+  .recipe-items {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}
+
+@media (min-width: 769px) {
+  .grocery-app,
+  .item-grid,
+  .recipe-items {
+    grid-template-columns: repeat(auto-fill, minmax(12em, 1fr)); /* More columns on desktop */
+  }
+}
+
+/* Touch-friendly feedback */
+@media (hover: none) {
+  .draggable-item:active,
+  .draggable-section:active {
+    background-color: #e0f0ff;
+    transform: scale(1.02);
+  }
+
+  .category-pill:active {
+    background-color: #c8c8e8;
+  }
 }

@@ -80,5 +80,4 @@ Items are sorted by user-defined store sections (stored in `storeSections` array
 * Deleted foo-option items should not be included in the default items.
 * Import/export option?
 * ListItem is a div-input, but AvailableItem and CustomItem are buttons. I'd like shared element types so the styles are more consistent.
-* Testing: KV requests don't work in local testing. How can we make it more easily testable?
 * Less risk of clobbering list-options. A backup/restore to localstorage or something? idk, (*something* better than current.

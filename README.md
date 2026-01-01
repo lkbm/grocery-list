@@ -14,7 +14,8 @@ This is not vibe coded, but was my first "almost vibe coded" project. Prior to t
 # Run locally
 * nvm use
 * nvm install
-* npm run dev
+* npm run dev (Vite, no backend)
+* npx wrangler dev (Includes a local backend)
 
 # Deploy
 

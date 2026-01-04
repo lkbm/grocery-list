@@ -68,16 +68,16 @@ interface Item {
 Items are sorted by user-defined store sections (stored in `storeSections` array in options data). Default sections are provided for new lists but users can add, remove, and reorder sections via "Sort Items" mode.
 
 ## Development Notes
-
 - Uses hash-based routing for different lists (e.g., #my-list)
 - Each list has a corresponding "-options" list for available items
+- list, list-options, list-options-options, etc. are all just lists. Don't do special code for of a list name ends with -options.
 - Implements optimistic UI updates with server conflict resolution
 - Auto-saves every 2 seconds when list changes
 - Supports multiple concurrent users via timestamp-based merging
-- list, list-options, list-options-options, etc. are all just lists. Don't do special code for of a list name ends with -options.
 
 ## TODOs
 * Deleted foo-option items should not be included in the default items.
 * Import/export option?
 * ListItem is a div-input, but AvailableItem and CustomItem are buttons. I'd like shared element types so the styles are more consistent.
 * Less risk of clobbering list-options. A backup/restore to localstorage or something? idk, (*something* better than current.
+* Consider replacing KV with durable objects.

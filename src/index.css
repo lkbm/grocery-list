@@ -91,6 +91,90 @@ h2, h3 {
 
 .custom {
   text-transform: capitalize;
+  gap: 0.3em;
+}
+
+.custom-item-plus {
+  opacity: 0.5;
+  font-weight: 300;
+  font-size: 1.2em;
+}
+
+/* Custom item inline form */
+.custom-item-form {
+  display: flex;
+  border: 1px solid #c0c0c0;
+  border-radius: 8px;
+  overflow: hidden;
+  min-height: max(5em, 48px);
+  background: #fff;
+  transition: border-color 0.15s ease;
+}
+
+.custom-item-form:focus-within {
+  border-color: #646cff;
+  box-shadow: 0 0 0 2px rgba(100, 108, 255, 0.15);
+}
+
+.custom-item-input {
+  flex: 1;
+  border: none;
+  padding: 0.5em 0.75em;
+  font-size: 1em;
+  background: transparent;
+  min-width: 0;
+  height: auto;
+  width: 100%;
+  border-radius: 0;
+}
+
+.custom-item-input:focus {
+  outline: none;
+}
+
+.custom-item-input::placeholder {
+  text-transform: capitalize;
+  opacity: 0.5;
+}
+
+.custom-item-cancel,
+.custom-item-submit {
+  width: 2.5em;
+  min-height: auto;
+  border: none;
+  background: #f0f0f0;
+  color: #333;
+  font-size: 1.4em;
+  font-weight: 300;
+  cursor: pointer;
+  border-radius: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: background-color 0.15s ease, color 0.15s ease;
+}
+
+.custom-item-cancel {
+  border-right: 1px solid #e0e0e0;
+}
+
+.custom-item-cancel:hover {
+  background: #ffeeee;
+  color: #c00;
+}
+
+.custom-item-submit {
+  border-left: 1px solid #e0e0e0;
+}
+
+.custom-item-submit:hover:not(:disabled) {
+  background: #ddf0dd;
+  color: #2a7a2a;
+}
+
+.custom-item-submit:disabled {
+  opacity: 0.3;
+  cursor: not-allowed;
 }
 
 /* Sort mode styles */

@@ -249,6 +249,7 @@ export default function App() {
 
 	// Auto-save when list changes:
 	useEffect(() => {
+		// Does this debounce? Shouldn't there be a "if isSaving" check?
 		const timeoutId = setTimeout(() => {
 			console.debug("Auto-saving currentList", currentList);
 			saveList();
@@ -594,13 +595,13 @@ export default function App() {
 												category={category}
 												onReorder={reorderItem}
 											/>
-											: <ListItem
-												key={item.name}
-												item={item}
-												currentValue={item.status === "carted"}
-												toggleCurrentItems={toggleCurrentItem}
-												registerRef={registerItemRef}
-											/>}
+												: <ListItem
+													key={item.name}
+													item={item}
+													currentValue={item.status === "carted"}
+													toggleCurrentItems={toggleCurrentItem}
+													registerRef={registerItemRef}
+												/>}
 									</Fragment>
 								))}
 							</div>
@@ -1132,25 +1133,44 @@ const CustomItem = ({ onChange, category }: CustomItemProps) => {
 		}
 	};
 
+	const handleCancel = () => {
+		setCustomValue("");
+		setIsEditing(false);
+	};
+
+	const handleKeyDown = (e: KeyboardEvent) => {
+		if (e.key === 'Escape') {
+			handleCancel();
+		}
+	};
+
 	if (isEditing) {
 		return (
-			<form onSubmit={handleSubmit}>
+			<form onSubmit={handleSubmit} className="custom-item-form">
+				<button type="button" className="custom-item-cancel" onClick={handleCancel}>
+					×
+				</button>
 				<input
 					ref={inputRef}
 					type="text"
 					value={customValue}
 					onChange={(e) => setCustomValue((e.target as HTMLInputElement)?.value)}
-					placeholder={`Enter custom ${category}`}
+					onKeyDown={handleKeyDown}
+					placeholder={category}
+					className="custom-item-input"
 				/>
-				<button type="button" onClick={() => setIsEditing(false)}>
-					Cancel
+				<button type="submit" className="custom-item-submit" disabled={!customValue.trim()}>
+					+
 				</button>
 			</form>
 		);
 	}
 
 	return (
-		<button onClick={() => setIsEditing(true)} className="available-item custom">{category}</button>
+		<button onClick={() => setIsEditing(true)} className="available-item custom">
+			<span className="custom-item-plus">+</span>
+			{category}
+		</button>
 	);
 };
 

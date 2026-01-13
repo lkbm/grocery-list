@@ -25,7 +25,8 @@ label {
   cursor: pointer;
   transition: border-color 0.25s;
   box-sizing: border-box;
-  min-height: max(5em, 48px); /* Ensure 48px minimum for touch */
+  min-height: max(5em, 48px);
+  /* Ensure 48px minimum for touch */
   align-items: center;
   display: flex;
   justify-content: center;
@@ -84,7 +85,8 @@ hr {
   background-color: #ddf0dd;
 }
 
-h2, h3 {
+h2,
+h3 {
   grid-column: 1 / -1;
   margin: 0.5em 0;
 }
@@ -356,7 +358,7 @@ input[type=text] {
   white-space: nowrap;
   max-width: calc(100vw - 32px);
   overflow: hidden;
-  box-shadow: 0 2px 8px rgba(0,0,0,0.15);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
   cursor: pointer;
   width: auto;
   min-height: auto;
@@ -717,10 +719,12 @@ input[type=text] {
 
 /* Responsive breakpoints */
 @media (max-width: 480px) {
+
   .grocery-app,
   .item-grid,
   .recipe-items {
-    grid-template-columns: repeat(2, 1fr); /* Always 2 columns on mobile */
+    grid-template-columns: repeat(2, 1fr);
+    /* Always 2 columns on mobile */
     gap: 6px;
   }
 
@@ -748,6 +752,7 @@ input[type=text] {
 }
 
 @media (min-width: 481px) and (max-width: 768px) {
+
   .grocery-app,
   .item-grid,
   .recipe-items {
@@ -756,15 +761,18 @@ input[type=text] {
 }
 
 @media (min-width: 769px) {
+
   .grocery-app,
   .item-grid,
   .recipe-items {
-    grid-template-columns: repeat(auto-fill, minmax(12em, 1fr)); /* More columns on desktop */
+    grid-template-columns: repeat(auto-fill, minmax(12em, 1fr));
+    /* More columns on desktop */
   }
 }
 
 /* Touch-friendly feedback */
 @media (hover: none) {
+
   .draggable-item:active,
   .draggable-section:active {
     background-color: #e0f0ff;
@@ -774,4 +782,8 @@ input[type=text] {
   .category-pill:active {
     background-color: #c8c8e8;
   }
+}
+
+.help-link {
+  text-decoration: underline;
 }

@@ -87,6 +87,7 @@ export default function App() {
 	const [isSaving, setIsSaving] = useState<boolean>(false);
 	const [isErrorSaving, setErrorSaving] = useState<boolean>(false);
 	const [showAddRecipeModal, setShowAddRecipeModal] = useState<boolean>(false);
+	const [showHelpModal, setShowHelpModal] = useState<boolean>(false);
 	const [skippedItems, setSkippedItems] = useState<string[]>([]);
 	const itemRefs = useRef<Map<string, HTMLElement>>(new Map());
 
@@ -226,11 +227,6 @@ export default function App() {
 	// Load initial state:
 	useEffect(() => {
 		const loadData = async () => {
-			if (['default-list', 'default-list-options'].includes(listName)) {
-				setIsLoading(false);
-				return;
-			}
-
 			// Load both the current list and options list
 			const [currentListData, optionsData] = await Promise.all([
 				fetchListData(listName),
@@ -625,6 +621,8 @@ export default function App() {
 				onDeleteSection={deleteSection}
 				collapsedSections={collapsedSections}
 				onToggleSectionCollapse={toggleSectionCollapse}
+				listName={listName}
+				onHelpClick={() => setShowHelpModal(true)}
 			/>
 			{showAddRecipeModal && (
 				<AddRecipeModal
@@ -633,6 +631,9 @@ export default function App() {
 					onSave={addRecipe}
 					onClose={() => setShowAddRecipeModal(false)}
 				/>
+			)}
+			{showHelpModal && (
+				<HelpModal onClose={() => setShowHelpModal(false)} />
 			)}
 		</div >
 	);
@@ -653,6 +654,8 @@ interface AddItemsProps {
 	onDeleteSection: (sectionName: string, deleteItems: boolean) => Promise<void>;
 	collapsedSections: { sections: boolean; standardItems: boolean };
 	onToggleSectionCollapse: (section: 'sections' | 'standardItems') => void;
+	listName: string;
+	onHelpClick: () => void;
 }
 
 // Check if an item should appear in Standard Items (default items)
@@ -663,7 +666,7 @@ const isDefaultItem = (item: Item): boolean => {
 	return item.recipes.includes(DEFAULT_RECIPE);
 };
 
-const AddItems = memo(({ onAddItem, possibleItems, activeItemNames, recipeOrder, storeSections, onAddRecipeClick, onDeleteRecipe, isSorting, onReorderRecipe, onReorderSection, onAddSection, onDeleteSection, collapsedSections, onToggleSectionCollapse }: AddItemsProps) => {
+const AddItems = memo(({ onAddItem, possibleItems, activeItemNames, recipeOrder, storeSections, onAddRecipeClick, onDeleteRecipe, isSorting, onReorderRecipe, onReorderSection, onAddSection, onDeleteSection, collapsedSections, onToggleSectionCollapse, listName, onHelpClick }: AddItemsProps) => {
 	const [expandedRecipe, setExpandedRecipe] = useState<string | null>(null);
 	const [draggingRecipe, setDraggingRecipe] = useState<string | null>(null);
 	const [dragOverRecipe, setDragOverRecipe] = useState<string | null>(null);
@@ -965,6 +968,12 @@ const AddItems = memo(({ onAddItem, possibleItems, activeItemNames, recipeOrder,
 						</div>
 					</div>
 				</div>
+			)}
+			<span onClick={onHelpClick} className="help-link">Help</span>
+			{listName.endsWith('-options') ? (
+				<a href={`#${listName.slice(0, -8)}`} target="_blank">Go to List</a>
+			) : (
+				<a href={`#${listName}-options`} target="_blank">Edit Options</a>
 			)}
 		</>
 	);
@@ -1304,6 +1313,34 @@ const AddRecipeModal = ({ possibleItems, storeSections, onSave, onClose }: AddRe
 					>
 						{isSaving ? "Saving..." : "Save Recipe"}
 					</button>
+				</div>
+			</div>
+		</div>
+	);
+};
+
+interface HelpModalProps {
+	onClose: () => void;
+}
+
+const HelpModal = ({ onClose }: HelpModalProps) => {
+	return (
+		<div className="modal-overlay" onClick={onClose}>
+			<div className="modal-content help-modal" onClick={e => e.stopPropagation()}>
+				<div className="modal-header">
+					<h2>Don't Forget the Oatmeal!</h2>
+					<button className="modal-close" onClick={onClose}>&times;</button>
+				</div>
+				<div className="modal-body">
+					<h3>A simple grocery list app</h3>
+					<p>You can create a personal grocery list given hash. e.g., https://lucamasters.com/grocery#johnsmith</p>
+					<p>You can create a list of default items that you frequently purchase by creating a second list with the same hash but appending "-options" to the end. e.g., https://lucamasters.com/grocery#johnsmith-options</p>
+					<p>All lists are saved to Cloudflare Workers, which means anyone who guesses the hash can see and modify your list. Don't use this for sensitive information, and consider using a less obvious hash.</p>
+					<p>Note, however, that this feature means it will sync across devices, and can be shared with others. Do note that it's possible to accidentally clobber the list. It tries to combine intelligently if you modify on two different devices, but I recommend reloading the tab if it's been sitting open while you modified the list on another device.</p>
+					<p>Please don't abuse this. I just want it for my own purposes, and don't want to have to add auth or anything.</p>
+				</div>
+				<div className="modal-footer">
+					<button onClick={onClose}>Close</button>
 				</div>
 			</div>
 		</div>

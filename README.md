@@ -1,4 +1,4 @@
-# Grocery List
+# Don't forget the oatmeal
 
 A simple grocery list application built with preeact, TypeScript, Vite, and Cloudflare Workers.
 

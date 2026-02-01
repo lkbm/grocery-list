@@ -21,9 +21,7 @@
 		"noUnusedLocals": true,
 		"noUnusedParameters": true,
 		"noFallthroughCasesInSwitch": true,
-		"noUncheckedSideEffectImports": true,
-
-		"types": ["@cloudflare/workers-types/2023-07-01"]
+		"noUncheckedSideEffectImports": true
 	},
-	"include": ["src"]
+	"include": ["src", "worker-configuration.d.ts"]
 }

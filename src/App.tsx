@@ -2,6 +2,12 @@ import { useState, useEffect, useMemo, useRef, useCallback } from 'preact/hooks'
 import { Fragment } from 'preact';
 import { memo } from 'preact/compat';
 
+declare global {
+	interface Window {
+		debug: () => void;
+	}
+}
+
 export interface Item {
 	name: string;
 	status?: "need" | "carted";
@@ -41,6 +47,32 @@ const DEFAULT_STORE_SECTIONS = [
 	"Farmers' Market"
 ];
 
+// localStorage backup helpers for options data
+const getBackupKey = (optionsListName: string) => `grocery-backup:${optionsListName}`;
+
+const saveOptionsBackup = (optionsListName: string, data: OptionsData) => {
+	try {
+		const key = getBackupKey(optionsListName);
+		localStorage.setItem(key, JSON.stringify({
+			data,
+			timestamp: new Date().toISOString()
+		}));
+	} catch (e) {
+		console.warn("Failed to save options backup to localStorage", e);
+	}
+};
+
+const getOptionsBackup = (optionsListName: string): { data: OptionsData; timestamp: string } | null => {
+	try {
+		const key = getBackupKey(optionsListName);
+		const stored = localStorage.getItem(key);
+		if (!stored) return null;
+		return JSON.parse(stored);
+	} catch {
+		return null;
+	}
+};
+
 const getNewestOfEachItem = (itemList: Item[]): Item[] => {
 	const latestItems: { [key: string]: Item } = {};
 	itemList.forEach(item => {
@@ -53,6 +85,24 @@ const getNewestOfEachItem = (itemList: Item[]): Item[] => {
 	});
 
 	return Object.values(latestItems);
+};
+
+const fetchListData = async (listName: string): Promise<Item[]> => {
+	const res = await fetch(`/api/state/${listName}`);
+	const data = await res.json().catch(() => []);
+	const typedData = data as { value: string };
+
+	try {
+		let loadedList = typedData.value ? JSON.parse(typedData.value) : [];
+		loadedList = loadedList.map((item: Item) => ({
+			...item,
+			dateAdded: item.dateAdded || DEFAULT_DATE,
+			lastUpdated: item.lastUpdated || DEFAULT_DATE,
+		}));
+		return loadedList;
+	} catch {
+		return [];
+	}
 };
 
 export default function App() {
@@ -88,6 +138,7 @@ export default function App() {
 	const [isErrorSaving, setErrorSaving] = useState<boolean>(false);
 	const [showAddRecipeModal, setShowAddRecipeModal] = useState<boolean>(false);
 	const [showHelpModal, setShowHelpModal] = useState<boolean>(false);
+	const [backupAvailable, setBackupAvailable] = useState<{ data: OptionsData; timestamp: string } | null>(null);
 	const [skippedItems, setSkippedItems] = useState<string[]>([]);
 	const itemRefs = useRef<Map<string, HTMLElement>>(new Map());
 
@@ -173,34 +224,17 @@ export default function App() {
 		return Array.from(itemMap.values());
 	}, [possibleItems, activeItems]);
 
-	const fetchListData = async (listName: string): Promise<Item[]> => {
-		const res = await fetch(`/api/state/${listName}`);
-		const data = await res.json().catch(() => []);
-		const typedData = data as { value: string };
-
-		try {
-			let loadedList = typedData.value ? JSON.parse(typedData.value) : [];
-			loadedList = loadedList.map((item: Item) => ({
-				...item,
-				dateAdded: item.dateAdded || DEFAULT_DATE,
-				lastUpdated: item.lastUpdated || DEFAULT_DATE,
-			}));
-			return loadedList;
-		} catch {
-			return [];
-		}
-	};
-
-	const fetchOptionsData = async (): Promise<OptionsData> => {
+	const fetchOptionsData = useCallback(async (): Promise<OptionsData> => {
 		const res = await fetch(`/api/state/${optionsListName}`);
 		const data = await res.json().catch(() => ({}));
 		const typedData = data as { value: string };
 
 		try {
 			const parsed = typedData.value ? JSON.parse(typedData.value) : {};
+			let result: OptionsData;
 			// Backwards compatibility: if it's an array, treat as items with no recipes
 			if (Array.isArray(parsed)) {
-				return {
+				result = {
 					items: parsed.map((item: Item) => ({
 						...item,
 						dateAdded: item.dateAdded || DEFAULT_DATE,
@@ -209,20 +243,26 @@ export default function App() {
 					recipeOrder: [],
 					storeSections: []  // Will be populated from item categories
 				};
+			} else {
+				result = {
+					items: (parsed.items || []).map((item: Item) => ({
+						...item,
+						dateAdded: item.dateAdded || DEFAULT_DATE,
+						lastUpdated: item.lastUpdated || DEFAULT_DATE,
+					})),
+					recipeOrder: parsed.recipeOrder || [],
+					storeSections: parsed.storeSections || []  // Will be populated from item categories
+				};
 			}
-			return {
-				items: (parsed.items || []).map((item: Item) => ({
-					...item,
-					dateAdded: item.dateAdded || DEFAULT_DATE,
-					lastUpdated: item.lastUpdated || DEFAULT_DATE,
-				})),
-				recipeOrder: parsed.recipeOrder || [],
-				storeSections: parsed.storeSections || []  // Will be populated from item categories
-			};
+			// Save backup if we got real data
+			if (result.items.length > 0) {
+				saveOptionsBackup(optionsListName, result);
+			}
+			return result;
 		} catch {
 			return { items: [], recipeOrder: [], storeSections: [] };
 		}
-	};
+	}, [optionsListName]);
 
 	// Load initial state:
 	useEffect(() => {
@@ -237,49 +277,69 @@ export default function App() {
 			setPossibleItems(optionsData.items);
 			setRecipeOrder(optionsData.recipeOrder);
 			setStoreSections(optionsData.storeSections);
+
+			// Check if options are empty but we have a backup
+			if (optionsData.items.length === 0) {
+				const backup = getOptionsBackup(optionsListName);
+				if (backup && backup.data.items.length > 0) {
+					setBackupAvailable(backup);
+				}
+			}
+
 			setIsLoading(false);
 		};
 
 		loadData();
-	}, [listName]);
-
-	// Auto-save when list changes:
-	useEffect(() => {
-		// Does this debounce? Shouldn't there be a "if isSaving" check?
-		const timeoutId = setTimeout(() => {
-			console.debug("Auto-saving currentList", currentList);
-			saveList();
-		}, 2000);
-
-		return () => clearTimeout(timeoutId);
-	}, [currentList]);
+	}, [listName, optionsListName, fetchOptionsData]);
 
 	const saveList = async () => {
 		setIsSaving(true);
 		setErrorSaving(false);
 
 		try {
-			// Fetch server's current list
-			let mergedList = currentList;
-			if (!force) {
-				const serverList = await fetchListData(listName);
-				mergedList = getNewestOfEachItem([...serverList, ...currentList]);
+			// For -options lists, preserve structured format with recipeOrder/storeSections
+			if (listName.endsWith('-options')) {
+				// Merge currentList items into possibleItems (currentList may have newly added items)
+				const mergedItems = getNewestOfEachItem([...possibleItems, ...currentList]);
+				const optionsData: OptionsData = {
+					items: mergedItems,
+					recipeOrder,
+					storeSections: effectiveSortOrder
+				};
+				await fetch(`/api/state/${listName}`, {
+					method: 'PUT',
+					headers: { 'Content-Type': 'application/json' },
+					body: JSON.stringify({ value: JSON.stringify(optionsData) })
+				}).then(response => {
+					if (!response.ok) {
+						console.error(`Error: ${response.status}`);
+						setErrorSaving(true);
+					}
+					setTimeout(() => setIsSaving(false), 1000);
+				});
+				// Update possibleItems with merged data
+				setPossibleItems(mergedItems);
 			} else {
-				mergedList = activeItems.filter(item => ["need", "carted"].includes(item.status || ""));
-			}
-			await fetch(`/api/state/${listName}`, {
-				method: 'PUT',
-				headers: { 'Content-Type': 'application/json' },
-				body: JSON.stringify({ value: JSON.stringify(mergedList) })
-			}).then(response => {
-				if (!response.ok) {
-					console.error(`Error: ${response.status}`);
-					setErrorSaving(true);
+				// Regular list: save as plain array
+				let mergedList = currentList;
+				if (!force) {
+					const serverList = await fetchListData(listName);
+					mergedList = getNewestOfEachItem([...serverList, ...currentList]);
+				} else {
+					mergedList = activeItems.filter(item => ["need", "carted"].includes(item.status || ""));
 				}
-				setTimeout(() => {
-					setIsSaving(false);
-				}, 1000);
-			});
+				await fetch(`/api/state/${listName}`, {
+					method: 'PUT',
+					headers: { 'Content-Type': 'application/json' },
+					body: JSON.stringify({ value: JSON.stringify(mergedList) })
+				}).then(response => {
+					if (!response.ok) {
+						console.error(`Error: ${response.status}`);
+						setErrorSaving(true);
+					}
+					setTimeout(() => setIsSaving(false), 1000);
+				});
+			}
 		} catch (err) {
 			console.error("Save error", err);
 			setErrorSaving(true);
@@ -288,7 +348,32 @@ export default function App() {
 		setForce(false);
 	};
 
+	// Auto-save when list changes
+	useEffect(() => {
+		const timeoutId = setTimeout(() => {
+			console.debug("Auto-saving currentList", currentList);
+			saveList();
+		}, 2000);
+
+		return () => clearTimeout(timeoutId);
+		// eslint-disable-next-line react-hooks/exhaustive-deps
+	}, [currentList]);
 	const getNow = () => new Date().toISOString();
+
+	useEffect(() => {
+		window.debug = () => {
+			console.debug({ currentList, possibleItems, recipeOrder, storeSections });
+		};
+	}, [currentList, possibleItems, recipeOrder, storeSections]);
+
+	const restoreFromBackup = async () => {
+		if (!backupAvailable) return;
+		const { data } = backupAvailable;
+		await saveOptionsData(data.items, data.recipeOrder, data.storeSections);
+		setBackupAvailable(null);
+	};
+
+	const dismissBackup = () => setBackupAvailable(null);
 
 	const saveOptionsData = async (items: Item[], recipes: string[], sections?: string[]) => {
 		// Use provided sections, or current effectiveSortOrder to persist any auto-discovered categories
@@ -529,6 +614,15 @@ export default function App() {
 	const itemNamesOnList = activeItems.map((item) => item.name);
 	return (
 		<div className="grocery-app">
+			{backupAvailable && (
+				<div className="backup-banner">
+					<span>
+						Options list is empty but a backup from {new Date(backupAvailable.timestamp).toLocaleString()} exists ({backupAvailable.data.items.length} items).
+					</span>
+					<button onClick={restoreFromBackup}>Restore</button>
+					<button onClick={dismissBackup}>Dismiss</button>
+				</div>
+			)}
 			<SkippedItemsIndicator items={skippedItems} onScrollToTop={scrollToTop} />
 			<button onClick={pruneList}>
 				Prune Purchases

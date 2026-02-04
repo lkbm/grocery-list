@@ -787,3 +787,44 @@ input[type=text] {
 .help-link {
   text-decoration: underline;
 }
+
+/* Backup restore banner */
+.backup-banner {
+  grid-column: 1 / -1;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  padding: 12px;
+  background-color: #fff3cd;
+  border: 1px solid #ffc107;
+  border-radius: 8px;
+  margin-bottom: 8px;
+}
+
+.backup-banner span {
+  flex: 1;
+  min-width: 200px;
+}
+
+.backup-banner button {
+  width: auto;
+  min-height: 2.5em;
+  padding: 0.5em 1em;
+}
+
+.backup-banner button:first-of-type {
+  background-color: #28a745;
+  color: white;
+  border-color: #28a745;
+}
+
+.backup-banner button:first-of-type:hover {
+  background-color: #218838;
+  border-color: #1e7e34;
+}
+
+.backup-banner button:last-of-type {
+  background-color: transparent;
+  border-color: #999;
+}

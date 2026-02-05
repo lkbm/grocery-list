@@ -402,9 +402,14 @@ export default function App() {
 				const existing = updatedItems[existingIndex];
 				const recipes = existing.recipes || [];
 				if (!recipes.includes(recipeName)) {
+					// Preserve default status: if item was a default item, keep it as one
+					const wasDefault = isDefaultItem(existing);
+					const newRecipes = wasDefault && !recipes.includes(DEFAULT_RECIPE)
+						? [...recipes, DEFAULT_RECIPE, recipeName]
+						: [...recipes, recipeName];
 					updatedItems[existingIndex] = {
 						...existing,
-						recipes: [...recipes, recipeName]
+						recipes: newRecipes
 					};
 				}
 			} else {

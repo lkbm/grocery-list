@@ -76,8 +76,6 @@ Items are sorted by user-defined store sections (stored in `storeSections` array
 - Supports multiple concurrent users via timestamp-based merging
 
 ## TODOs
-* Deleted foo-option items should not be included in the default items.
 * Import/export option?
 * ListItem is a div-input, but AvailableItem and CustomItem are buttons. I'd like shared element types so the styles are more consistent.
-* Less risk of clobbering list-options. A backup/restore to localstorage or something? idk, (*something* better than current.
 * Consider replacing KV with durable objects.

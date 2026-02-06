@@ -3,7 +3,7 @@ import preact from "@preact/preset-vite";
 import { visualizer } from "rollup-plugin-visualizer";
 
 export default defineConfig({
-	plugins: [preact(), visualizer({ open: true, filename: "bundle-visualization.html" })],
+	plugins: [preact(), visualizer({ open: false, filename: "bundle-visualization.html" })],
 	base: "/",
 	resolve: {
 		alias: {

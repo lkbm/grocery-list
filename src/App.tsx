@@ -1,6 +1,9 @@
 import { useState, useEffect, useMemo, useRef, useCallback } from 'preact/hooks';
 import { Fragment } from 'preact';
 import { memo } from 'preact/compat';
+import { Item, ListData } from './types';
+
+export const blankList = { items: [], recipeOrder: [], storeSections: [] }
 
 declare global {
 	interface Window {
@@ -8,49 +11,14 @@ declare global {
 	}
 }
 
-export interface Item {
-	name: string;
-	status?: "need" | "carted";
-	category?: string;
-	recipes?: string[];      // Recipe names this item belongs to; empty/missing = "default items"
-	dateAdded?: string;      // ISO string
-	lastUpdated?: string;    // ISO string
-	deleted?: boolean;
-	deletedAt?: string;      // ISO string
-	sortIndex?: number;      // Custom sort order within category
-};
-
-export interface OptionsData {
-	items: Item[];
-	recipeOrder: string[];   // Ordered list of recipe names
-	storeSections: string[]; // Ordered list of store sections/categories
-}
-
 const DEFAULT_RECIPE = "default items";
 
 const DEFAULT_DATE = "1970-01-01T00:00:00Z";
 
-// Default store sections for new lists or backwards compatibility
-const DEFAULT_STORE_SECTIONS = [
-	"unknown",
-	"produce",
-	"corner",
-	"bread",
-	"cans",
-	"pasta",
-	"soup",
-	"coffee and tea",
-	"eggs/dairy",
-	"soda",
-	"pharmacy",
-	"frozen",
-	"Farmers' Market"
-];
-
 // localStorage backup helpers for options data
 const getBackupKey = (optionsListName: string) => `grocery-backup:${optionsListName}`;
 
-const saveOptionsBackup = (optionsListName: string, data: OptionsData) => {
+const saveOptionsBackup = (optionsListName: string, data: ListData) => {
 	try {
 		const key = getBackupKey(optionsListName);
 		localStorage.setItem(key, JSON.stringify({
@@ -62,7 +30,7 @@ const saveOptionsBackup = (optionsListName: string, data: OptionsData) => {
 	}
 };
 
-const getOptionsBackup = (optionsListName: string): { data: OptionsData; timestamp: string } | null => {
+const getOptionsBackup = (optionsListName: string): { data: ListData; timestamp: string } | null => {
 	try {
 		const key = getBackupKey(optionsListName);
 		const stored = localStorage.getItem(key);
@@ -87,21 +55,24 @@ const getNewestOfEachItem = (itemList: Item[]): Item[] => {
 	return Object.values(latestItems);
 };
 
-const fetchListData = async (listName: string): Promise<Item[]> => {
+const fetchListData = async (listName: string): Promise<ListData> => {
 	const res = await fetch(`/api/state/${listName}`);
-	const data = await res.json().catch(() => []);
-	const typedData = data as { value: string };
+	const data = (await res.json().catch(() => (blankList))) as ListData;
 
 	try {
-		let loadedList = typedData.value ? JSON.parse(typedData.value) : [];
-		loadedList = loadedList.map((item: Item) => ({
+		const rawItems = data?.items || [];
+		const items = rawItems.map((item: Item) => ({
 			...item,
 			dateAdded: item.dateAdded || DEFAULT_DATE,
 			lastUpdated: item.lastUpdated || DEFAULT_DATE,
 		}));
-		return loadedList;
+		return {
+			items,
+			recipeOrder: data?.recipeOrder || [],
+			storeSections: data?.storeSections || [],
+		};
 	} catch {
-		return [];
+		return blankList;
 	}
 };
 
@@ -109,6 +80,9 @@ export default function App() {
 	const [currentList, setCurrentList] = useState<Item[]>([]);
 	const [force, setForce] = useState<boolean>(false);
 	const [possibleItems, setPossibleItems] = useState<Item[]>([]);
+	// Current list's own metadata (for saving back to this list)
+	const [currentListMeta, setCurrentListMeta] = useState<{ recipeOrder: string[]; storeSections: string[] }>({ recipeOrder: [], storeSections: [] });
+	// Options list metadata (for UI: recipe picker, sort order)
 	const [recipeOrder, setRecipeOrder] = useState<string[]>([]);
 	const [storeSections, setStoreSections] = useState<string[]>([]);
 	const [isLoading, setIsLoading] = useState<boolean>(true);
@@ -138,7 +112,7 @@ export default function App() {
 	const [isErrorSaving, setErrorSaving] = useState<boolean>(false);
 	const [showAddRecipeModal, setShowAddRecipeModal] = useState<boolean>(false);
 	const [showHelpModal, setShowHelpModal] = useState<boolean>(false);
-	const [backupAvailable, setBackupAvailable] = useState<{ data: OptionsData; timestamp: string } | null>(null);
+	const [backupAvailable, setBackupAvailable] = useState<{ data: ListData; timestamp: string } | null>(null);
 	const [skippedItems, setSkippedItems] = useState<string[]>([]);
 	const itemRefs = useRef<Map<string, HTMLElement>>(new Map());
 
@@ -189,13 +163,14 @@ export default function App() {
 	// Effective sort order: stored sections + any new categories from items (backwards compatibility)
 	const effectiveSortOrder = useMemo(() => {
 		// Start with stored sections, or defaults if empty
-		const sections = storeSections.length > 0 ? [...storeSections] : [...DEFAULT_STORE_SECTIONS];
+		const sections = storeSections.length > 0 ? [...storeSections] : [];
 
 		// Find all unique categories from items that aren't in sections yet
 		const allCategories = new Set<string>();
 		activeItems.forEach(item => {
 			if (item.category) allCategories.add(item.category);
 		});
+
 		possibleItems.forEach(item => {
 			if (item.category) allCategories.add(item.category);
 		});
@@ -224,59 +199,31 @@ export default function App() {
 		return Array.from(itemMap.values());
 	}, [possibleItems, activeItems]);
 
-	const fetchOptionsData = useCallback(async (): Promise<OptionsData> => {
-		const res = await fetch(`/api/state/${optionsListName}`);
-		const data = await res.json().catch(() => ({}));
-		const typedData = data as { value: string };
-
-		try {
-			const parsed = typedData.value ? JSON.parse(typedData.value) : {};
-			let result: OptionsData;
-			// Backwards compatibility: if it's an array, treat as items with no recipes
-			if (Array.isArray(parsed)) {
-				result = {
-					items: parsed.map((item: Item) => ({
-						...item,
-						dateAdded: item.dateAdded || DEFAULT_DATE,
-						lastUpdated: item.lastUpdated || DEFAULT_DATE,
-					})),
-					recipeOrder: [],
-					storeSections: []  // Will be populated from item categories
-				};
-			} else {
-				result = {
-					items: (parsed.items || []).map((item: Item) => ({
-						...item,
-						dateAdded: item.dateAdded || DEFAULT_DATE,
-						lastUpdated: item.lastUpdated || DEFAULT_DATE,
-					})),
-					recipeOrder: parsed.recipeOrder || [],
-					storeSections: parsed.storeSections || []  // Will be populated from item categories
-				};
-			}
-			// Save backup if we got real data
-			if (result.items.length > 0) {
-				saveOptionsBackup(optionsListName, result);
-			}
-			return result;
-		} catch {
-			return { items: [], recipeOrder: [], storeSections: [] };
-		}
-	}, [optionsListName]);
-
 	// Load initial state:
 	useEffect(() => {
 		const loadData = async () => {
-			// Load both the current list and options list
+			// Load both the current list and options list (both use unified ListData format)
 			const [currentListData, optionsData] = await Promise.all([
 				fetchListData(listName),
-				fetchOptionsData()
+				fetchListData(optionsListName)
 			]);
 
-			setCurrentList(currentListData);
+			// Current list items and its own metadata (for saving)
+			setCurrentList(currentListData.items);
+			setCurrentListMeta({
+				recipeOrder: currentListData.recipeOrder,
+				storeSections: currentListData.storeSections
+			});
+
+			// Options list data (for UI: available items, recipe picker, sort order)
 			setPossibleItems(optionsData.items);
 			setRecipeOrder(optionsData.recipeOrder);
 			setStoreSections(optionsData.storeSections);
+
+			// Save backup if we got real options data
+			if (optionsData.items.length > 0) {
+				saveOptionsBackup(optionsListName, optionsData);
+			}
 
 			// Check if options are empty but we have a backup
 			if (optionsData.items.length === 0) {
@@ -290,55 +237,46 @@ export default function App() {
 		};
 
 		loadData();
-	}, [listName, optionsListName, fetchOptionsData]);
+	}, [listName, optionsListName]);
 
 	const saveList = async () => {
 		setIsSaving(true);
 		setErrorSaving(false);
 
 		try {
-			// For -options lists, preserve structured format with recipeOrder/storeSections
-			if (listName.endsWith('-options')) {
-				// Merge currentList items into possibleItems (currentList may have newly added items)
-				const mergedItems = getNewestOfEachItem([...possibleItems, ...currentList]);
-				const optionsData: OptionsData = {
-					items: mergedItems,
-					recipeOrder,
-					storeSections: effectiveSortOrder
-				};
-				await fetch(`/api/state/${listName}`, {
-					method: 'PUT',
-					headers: { 'Content-Type': 'application/json' },
-					body: JSON.stringify({ value: JSON.stringify(optionsData) })
-				}).then(response => {
-					if (!response.ok) {
-						console.error(`Error: ${response.status}`);
-						setErrorSaving(true);
-					}
-					setTimeout(() => setIsSaving(false), 1000);
-				});
-				// Update possibleItems with merged data
-				setPossibleItems(mergedItems);
+			// Merge with server data
+			let mergedItems = currentList;
+			if (!force) {
+				const serverData = await fetchListData(listName);
+				mergedItems = getNewestOfEachItem([...serverData.items, ...currentList]);
 			} else {
-				// Regular list: save as plain array
-				let mergedList = currentList;
-				if (!force) {
-					const serverList = await fetchListData(listName);
-					mergedList = getNewestOfEachItem([...serverList, ...currentList]);
-				} else {
-					mergedList = activeItems.filter(item => ["need", "carted"].includes(item.status || ""));
+				mergedItems = activeItems.filter(item => ["need", "carted"].includes(item.status || ""));
+			}
+
+			// When current list IS the options list, use UI state (reflects edits)
+			// Otherwise, use the list's own metadata
+			const isOwnOptionsSource = listName === optionsListName;
+			const listData: ListData = {
+				items: mergedItems,
+				recipeOrder: isOwnOptionsSource ? recipeOrder : currentListMeta.recipeOrder,
+				storeSections: isOwnOptionsSource ? effectiveSortOrder : currentListMeta.storeSections
+			};
+
+			await fetch(`/api/state/${listName}`, {
+				method: 'PUT',
+				headers: { 'Content-Type': 'application/json' },
+				body: JSON.stringify(listData)
+			}).then(response => {
+				if (!response.ok) {
+					console.error(`Error: ${response.status}`);
+					setErrorSaving(true);
 				}
-				await fetch(`/api/state/${listName}`, {
-					method: 'PUT',
-					headers: { 'Content-Type': 'application/json' },
-					body: JSON.stringify({ value: JSON.stringify(mergedList) })
-				}).then(response => {
-					if (!response.ok) {
-						console.error(`Error: ${response.status}`);
-						setErrorSaving(true);
-					}
-					setTimeout(() => setIsSaving(false), 1000);
-				});
+				setTimeout(() => setIsSaving(false), 1000);
+			});
+
+			// If this list is also the options source, update possibleItems
+			if (isOwnOptionsSource) {
+				setPossibleItems(mergedItems);
 			}
 		} catch (err) {
 			console.error("Save error", err);
@@ -378,11 +316,11 @@ export default function App() {
 	const saveOptionsData = async (items: Item[], recipes: string[], sections?: string[]) => {
 		// Use provided sections, or current effectiveSortOrder to persist any auto-discovered categories
 		const sectionsToSave = sections ?? effectiveSortOrder;
-		const optionsData: OptionsData = { items, recipeOrder: recipes, storeSections: sectionsToSave };
+		const optionsData: ListData = { items, recipeOrder: recipes, storeSections: sectionsToSave };
 		await fetch(`/api/state/${optionsListName}`, {
 			method: 'PUT',
 			headers: { 'Content-Type': 'application/json' },
-			body: JSON.stringify({ value: JSON.stringify(optionsData) })
+			body: JSON.stringify(optionsData),
 		});
 		setPossibleItems(items);
 		setRecipeOrder(recipes);
@@ -632,7 +570,6 @@ export default function App() {
 			<button onClick={pruneList}>
 				Prune Purchases
 			</button>
-
 			<button onClick={() => setIsRemoving(!isRemoving)}
 			>
 				{isRemoving ? "Done Removing" : "Remove Items"}
@@ -647,7 +584,9 @@ export default function App() {
 			>
 				{isSaving ? `Saving` : isErrorSaving ? `Error Saving!` : `Save List`}
 			</button>
+
 			<hr />
+
 			<button
 				className="collapsible-header"
 				onClick={() => toggleSectionCollapse('currentList')}
@@ -903,24 +842,22 @@ const AddItems = memo(({ onAddItem, possibleItems, activeItemNames, recipeOrder,
 							<CustomItem key={category} onChange={onAddItem} category={category} />
 						);
 					})}
-					{isSorting && (
-						isAddingSection ? (
-							<form onSubmit={handleAddSectionSubmit} className="add-section-form">
-								<input
-									ref={newSectionInputRef}
-									type="text"
-									value={newSectionName}
-									onChange={(e) => setNewSectionName((e.target as HTMLInputElement).value)}
-									placeholder="Section name"
-								/>
-								<button type="submit">Add</button>
-								<button type="button" onClick={() => { setIsAddingSection(false); setNewSectionName(""); }}>Cancel</button>
-							</form>
-						) : (
-							<button className="add-section-button" onClick={() => setIsAddingSection(true)}>
-								+ Add Section
-							</button>
-						)
+					{isAddingSection ? (
+						<form onSubmit={handleAddSectionSubmit} className="add-section-form">
+							<input
+								ref={newSectionInputRef}
+								type="text"
+								value={newSectionName}
+								onChange={(e) => setNewSectionName((e.target as HTMLInputElement).value)}
+								placeholder="Section name"
+							/>
+							<button type="submit">Add</button>
+							<button type="button" onClick={() => { setIsAddingSection(false); setNewSectionName(""); }}>Cancel</button>
+						</form>
+					) : (
+						<button className="add-section-button" onClick={() => setIsAddingSection(true)}>
+							+ Add Section
+						</button>
 					)}
 				</div>
 			)}

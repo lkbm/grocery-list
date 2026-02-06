@@ -30,6 +30,8 @@ label {
   align-items: center;
   display: flex;
   justify-content: center;
+  touch-action: manipulation;
+  /* Eliminate 300ms click delay on mobile */
 }
 
 button:hover,

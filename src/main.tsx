@@ -1,5 +1,7 @@
 import { Hono } from "hono";
 import { serveStatic } from "hono/cloudflare-workers";
+import { ListData } from './types';
+import { blankList } from './App';
 
 export interface Env {
 	GROCERYLIST: KVNamespace;
@@ -7,17 +9,18 @@ export interface Env {
 
 const app = new Hono<{ Bindings: Env }>();
 
+
 // API routes
 app.get("/api/state/:key", async (c) => {
 	const key = c.req.param("key");
 	const value = await c.env.GROCERYLIST.get(key);
-	return c.json({ value });
+	return c.json(value ? JSON.parse(value) : blankList);
 });
 
 app.put("/api/state/:key", async (c) => {
 	const key = c.req.param("key");
-	const { value } = await c.req.json();
-	await c.env.GROCERYLIST.put(key, value);
+	const data = await c.req.json();
+	await c.env.GROCERYLIST.put(key, data ? JSON.stringify(data as ListData) : "");
 	return c.json({ success: true });
 });
 

@@ -871,12 +871,15 @@ const AddItems = memo(({ onAddItem, possibleItems, activeItemNames, recipeOrder,
 			</button>
 			{!collapsedSections.standardItems && (
 				<div className="item-grid">
-					{standardItems.map((item) => (
-						<AvailableItem
-							key={`available-${item.name}`}
-							item={item}
-							onChange={onAddItem}
-						/>
+					{standardItems.map((item, index) => (
+						<>
+							<AvailableItem
+								key={`available-${item.name}`}
+								showCategoryLabel={index === 0 || item.category !== standardItems[index - 1].category}
+								item={item}
+								onChange={onAddItem}
+							/>
+						</>
 					))}
 				</div>
 			)}
@@ -1135,7 +1138,7 @@ interface AvailableItemProps {
 	item: Item;
 }
 
-const AvailableItem = ({ item, onChange, className = "" }: AvailableItemProps) => {
+const AvailableItem = ({ item, onChange, className = "", showCategoryLabel = false }: AvailableItemProps & { showCategoryLabel?: boolean }) => {
 	const [isRemoving, setIsRemoving] = useState(false);
 
 	const handleClick = () => {
@@ -1148,6 +1151,7 @@ const AvailableItem = ({ item, onChange, className = "" }: AvailableItemProps) =
 
 	return (
 		<button onClick={handleClick} className={`available-item ${className} ${isRemoving ? 'removing' : ''}`}>
+			{showCategoryLabel && <span className={`sideways-category-header`}>{item.category}</span>}
 			{item.name}
 		</button>
 	);

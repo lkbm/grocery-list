@@ -254,6 +254,16 @@ input[type=text] {
   grid-column: 1 / -1;
 }
 
+.sideways-category-header {
+  writing-mode: vertical-rl;
+  transform: rotate(180deg);
+  font-size: 0.5em;
+  font-weight: 500;
+  color: #666;
+  position: relative;
+  left: calc(-50% + .5em + 1px)
+}
+
 .category-pill {
   display: inline-flex;
   align-items: center;

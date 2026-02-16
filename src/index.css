@@ -260,8 +260,8 @@ input[type=text] {
   font-size: 0.5em;
   font-weight: 500;
   color: #666;
-  position: relative;
-  left: calc(-50% + .5em + 1px)
+  position: absolute;
+  left: 0;
 }
 
 .category-pill {
@@ -270,7 +270,6 @@ input[type=text] {
   gap: 8px;
   background: #e8e8f8;
   border: 1px solid #c0c0c0;
-  border-radius: 16px;
   padding: 6px 16px;
   font-size: 0.85em;
   font-weight: 500;
@@ -326,7 +325,6 @@ input[type=text] {
   gap: 8px;
   background: #e8e8f8;
   border: 1px solid #c0c0c0;
-  border-radius: 16px;
   padding: 6px 16px;
   font-size: 0.85em;
   font-weight: 500;
@@ -625,6 +623,10 @@ input[type=text] {
   flex: 1;
 }
 
+.available-item {
+  position: relative;
+}
+
 .draggable-section {
   cursor: grab;
   user-select: none;
@@ -839,4 +841,24 @@ input[type=text] {
 .backup-banner button:last-of-type {
   background-color: transparent;
   border-color: #999;
+}
+
+.footer-link {
+  text-decoration: none;
+  align-items: center;
+  gap: 8px;
+  background-color: #f9f9f9;
+  border: 1px solid #c0c0c0;
+  border-radius: 8px;
+  padding: 6px 16px;
+  font-size: 0.85em;
+  font-weight: 500;
+  cursor: pointer;
+  text-align: center;
+  color: #213547;
+}
+
+.footer-link:hover {
+  border-color: #646cff;
+  color: #646cff;
 }

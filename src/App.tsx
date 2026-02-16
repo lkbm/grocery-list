@@ -1008,12 +1008,17 @@ const AddItems = memo(({ onAddItem, possibleItems, activeItemNames, recipeOrder,
 					</div>
 				</div>
 			)}
-			<span onClick={onHelpClick} className="help-link">Help</span>
-			{listName.endsWith('-options') ? (
-				<a href={`#${listName.slice(0, -8)}`} target="_blank">Go to List</a>
-			) : (
-				<a href={`#${listName}-options`} target="_blank">Edit Options</a>
-			)}
+			<div className="item-grid">
+				<span onClick={onHelpClick} className="footer-link help-link">Help</span>
+				{listName.endsWith('-options') ? (
+					<a href={`#${listName.slice(0, -8)}`} target="_blank" className="footer-link">Go to List</a>
+				) : (
+					<a href={`#${listName}-options`} className="footer-link" target="_blank">Edit Options</a>
+				)}
+				<a href="https://ko-fi.com/lucamasters" target="_blank" rel="noopener noreferrer" className="footer-link">
+					Support me on Ko-Fi.
+				</a>
+			</div>
 		</>
 	);
 });

@@ -79,3 +79,4 @@ Items are sorted by user-defined store sections (stored in `storeSections` array
 * Import/export option?
 * ListItem is a div-input, but AvailableItem and CustomItem are buttons. I'd like shared element types so the styles are more consistent.
 * Consider replacing KV with durable objects.
+* Lazy-load sort mode

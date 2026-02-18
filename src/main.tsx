@@ -20,7 +20,7 @@ app.get("/api/state/:key", async (c) => {
 app.put("/api/state/:key", async (c) => {
 	const key = c.req.param("key");
 	const data = await c.req.json();
-	await c.env.GROCERYLIST.put(key, data ? JSON.stringify(data as ListData) : "");
+	c.executionCtx.waitUntil(c.env.GROCERYLIST.put(key, data ? JSON.stringify(data as ListData) : ""));
 	return c.json({ success: true });
 });
 

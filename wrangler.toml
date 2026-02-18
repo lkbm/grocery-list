@@ -1,0 +1,14 @@
+name = "grocery-list"
+main = "src/main.tsx"
+compatibility_date = "2026-02-17"
+
+
+[[kv_namespaces]]
+binding = "GROCERYLIST"
+id = "6ee0f472246141bf866c56cae62590ca"
+
+[assets]
+directory = "./dist"
+
+[build]
+command = "npm run build"

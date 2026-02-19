@@ -1,6 +1,7 @@
 name = "grocery-list"
 main = "src/main.tsx"
 compatibility_date = "2026-02-17"
+compatibility_flags = [ "nodejs_compat" ]
 
 
 [[kv_namespaces]]

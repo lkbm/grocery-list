@@ -714,7 +714,9 @@ const AddItems = memo(({ onAddItem, possibleItems, activeItemNames, recipeOrder,
 	const [deleteItemsChecked, setDeleteItemsChecked] = useState(false);
 	const [isAddingSection, setIsAddingSection] = useState(false);
 	const [newSectionName, setNewSectionName] = useState("");
+	const [searchFilter, setSearchFilter] = useState("");
 	const newSectionInputRef = useRef<HTMLInputElement>(null);
+	const searchInputRef = useRef<HTMLInputElement>(null);
 
 	useEffect(() => {
 		if (isAddingSection && newSectionInputRef.current) {
@@ -732,6 +734,12 @@ const AddItems = memo(({ onAddItem, possibleItems, activeItemNames, recipeOrder,
 				return storeSections.indexOf(categoryA) - storeSections.indexOf(categoryB);
 			});
 	}, [possibleItems, activeItemNames, storeSections]);
+
+	const filteredStandardItems = useMemo(() => {
+		if (!searchFilter.trim()) return standardItems;
+		const query = searchFilter.toLowerCase();
+		return standardItems.filter(item => item.name.toLowerCase().includes(query));
+	}, [standardItems, searchFilter]);
 
 	// Get items for a specific recipe
 	const getRecipeItems = (recipeName: string) => {
@@ -870,18 +878,37 @@ const AddItems = memo(({ onAddItem, possibleItems, activeItemNames, recipeOrder,
 				<span className="section-count">({standardItems.length})</span>
 			</button>
 			{!collapsedSections.standardItems && (
-				<div className="item-grid">
-					{standardItems.map((item, index) => (
-						<>
+				<>
+					<div className="search-filter">
+						<input
+							ref={searchInputRef}
+							type="text"
+							value={searchFilter}
+							onInput={(e) => setSearchFilter((e.target as HTMLInputElement).value)}
+							placeholder="Filter items..."
+							className="search-filter-input"
+						/>
+						{searchFilter && (
+							<button
+								className="search-filter-clear"
+								onClick={() => { setSearchFilter(""); searchInputRef.current?.focus(); }}
+							>&times;</button>
+						)}
+					</div>
+					<div className="item-grid">
+						{filteredStandardItems.map((item, index) => (
 							<AvailableItem
 								key={`available-${item.name}`}
-								showCategoryLabel={index === 0 || item.category !== standardItems[index - 1].category}
+								showCategoryLabel={index === 0 || item.category !== filteredStandardItems[index - 1].category}
 								item={item}
-								onChange={onAddItem}
+								onChange={(name, category) => { onAddItem(name, category); setSearchFilter(""); }}
 							/>
-						</>
-					))}
-				</div>
+						))}
+						{searchFilter && filteredStandardItems.length === 0 && (
+							<div className="search-no-results">No items match "{searchFilter}"</div>
+						)}
+					</div>
+				</>
 			)}
 			<h3>{isSorting ? "Drag to Reorder " : ""}Recipes</h3>
 			{recipeOrder.map((recipeName, index) => {

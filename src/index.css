@@ -883,6 +883,47 @@ input[type=text] {
   border-color: var(--border-danger-hover);
 }
 
+/* Search filter */
+.search-filter {
+  grid-column: 1 / -1;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.search-filter-input {
+  flex: 1;
+  min-width: 0;
+  padding: 8px 12px;
+  border: 1px solid var(--border-medium);
+  border-radius: 4px;
+  font-size: 1em;
+  background: var(--bg-surface);
+  color: var(--text);
+}
+
+.search-filter-clear {
+  flex-shrink: 0;
+  width: 48px;
+  height: 48px;
+  min-height: 48px;
+  padding: 0;
+  font-size: 1.2em;
+  line-height: 1;
+  border: 1px solid var(--border-medium);
+  border-radius: 4px;
+  background: var(--bg-surface);
+  color: var(--text-muted);
+  cursor: pointer;
+}
+
+.search-no-results {
+  grid-column: 1 / -1;
+  text-align: center;
+  color: var(--text-muted);
+  padding: 1em;
+}
+
 /* Responsive breakpoints */
 @media (max-width: 480px) {
 

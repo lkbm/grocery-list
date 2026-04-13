@@ -4,9 +4,13 @@ compatibility_date = "2026-03-06"
 compatibility_flags = [ "nodejs_compat" ]
 
 
-[[kv_namespaces]]
-binding = "GROCERYLIST"
-id = "6ee0f472246141bf866c56cae62590ca"
+[[durable_objects.bindings]]
+name = "GROCERYLIST"
+class_name = "GroceryList"
+
+[[migrations]]
+tag = "v1"
+new_classes = ["GroceryList"]
 
 [assets]
 directory = "./dist"

@@ -7,7 +7,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 This is a grocery list application built with:
 - **Frontend**: Preact (React alternative) with TypeScript and Vite
 - **Backend**: Hono framework running on Cloudflare Workers
-- **Storage**: Cloudflare KV for persistent data storage
+- **Storage**: Cloudflare Durable Objects for persistent data storage
 - **Deployment**: Cloudflare Workers via Wrangler
 
 The application is a single-page app that allows users to manage grocery lists with categories, item status tracking, and automatic syncing between devices.
@@ -26,7 +26,7 @@ The application is a single-page app that allows users to manage grocery lists w
   - `GET /api/state/:key` - retrieve list data
   - `PUT /api/state/:key` - save list data
 - Serves static assets from /dist
-- Uses Cloudflare KV namespace "GROCERYLIST" for persistence
+- Uses Cloudflare Durable Objects for persistence
 
 ### Build Configuration
 - Vite with Preact preset
@@ -76,9 +76,9 @@ Items are sorted by user-defined store sections (stored in `storeSections` array
 - Supports multiple concurrent users via timestamp-based merging
 
 ## TODOs
+* Use websockets for syncing instead of polling every 2 seconds
 * Import/export option?
 * ListItem is a div-input, but AvailableItem and CustomItem are buttons. I'd like shared element types so the styles are more consistent.
-* Consider replacing KV with durable objects.
 * Lazy-load sort mode
 * "Sort by store" -- let me list the arrangement of items by store somehow. If I'm at Aldi, I click the "Aldi" button and it sorts by their layout.
 * Price comparison info?

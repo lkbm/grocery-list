@@ -3,7 +3,7 @@
 A simple grocery list application built with preeact, TypeScript, Vite, and Cloudflare Workers.
 
 You can create a list by visiting a given hash: https://grocery-list.lkbm.workers.dev/#your-list-name
-It will be saved to Cloudflare KV.
+It will be saved to Cloudflare Durable Objects.
 
 The "Standard items" list will be empty by default. You can create a second list, https://grocery-list.lkbm.workers.dev/#your-list-name-options and populate it with items you frequently purchase, and that will then populate the Standard items section of your main list.
 

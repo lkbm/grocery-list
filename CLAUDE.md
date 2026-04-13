@@ -80,3 +80,5 @@ Items are sorted by user-defined store sections (stored in `storeSections` array
 * ListItem is a div-input, but AvailableItem and CustomItem are buttons. I'd like shared element types so the styles are more consistent.
 * Consider replacing KV with durable objects.
 * Lazy-load sort mode
+* "Sort by store" -- let me list the arrangement of items by store somehow. If I'm at Aldi, I click the "Aldi" button and it sorts by their layout.
+* Price comparison info?

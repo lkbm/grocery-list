@@ -108,6 +108,7 @@ export default function App() {
 	const toggleSectionCollapse = (section: keyof typeof collapsedSections) => {
 		setCollapsedSections(prev => ({ ...prev, [section]: !prev[section] }));
 	};
+	// TODO: Combine isSaving and isErrorSaving into a single status state to simplify?
 	const [isSaving, setIsSaving] = useState<boolean>(false);
 	const [isErrorSaving, setErrorSaving] = useState<boolean>(false);
 	const [showAddRecipeModal, setShowAddRecipeModal] = useState<boolean>(false);
@@ -706,6 +707,7 @@ const isDefaultItem = (item: Item): boolean => {
 
 const AddItems = memo(({ onAddItem, possibleItems, activeItemNames, recipeOrder, storeSections, onAddRecipeClick, onDeleteRecipe, isSorting, onReorderRecipe, onReorderSection, onAddSection, onDeleteSection, collapsedSections, onToggleSectionCollapse, listName, onHelpClick }: AddItemsProps) => {
 	const [expandedRecipe, setExpandedRecipe] = useState<string | null>(null);
+	// TODO: Combine the dragging state into a single object to simplify?
 	const [draggingRecipe, setDraggingRecipe] = useState<string | null>(null);
 	const [dragOverRecipe, setDragOverRecipe] = useState<string | null>(null);
 	const [draggingSection, setDraggingSection] = useState<string | null>(null);

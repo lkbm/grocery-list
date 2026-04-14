@@ -3,6 +3,56 @@ import { serveStatic } from "hono/cloudflare-workers";
 import { blankList } from './App';
 import { Item, ListData } from './types';
 
+const MAX_LIST_BYTES = 512 * 1024; // 512KiB
+const VALID_STATUSES = new Set(["need", "carted"]);
+
+// Clamp an ISO timestamp to the current time if it's in the future or invalid.
+function clampTimestamp(iso: string): string {
+	const now = Date.now();
+	const parsed = Date.parse(iso);
+	if (isNaN(parsed) || parsed > now) return new Date(now).toISOString();
+	return iso;
+}
+
+function sanitizeItem(raw: unknown): Item | null {
+	if (!raw || typeof raw !== 'object') return null;
+	const obj = raw as Record<string, unknown>;
+	if (typeof obj.name !== 'string' || !obj.name.trim()) return null;
+
+	const item: Item = { name: obj.name.trim() };
+	if (obj.status !== undefined) {
+		if (!VALID_STATUSES.has(obj.status as string)) return null;
+		item.status = obj.status as "need" | "carted";
+	}
+	if (typeof obj.category === 'string') item.category = obj.category;
+	if (Array.isArray(obj.recipes) && obj.recipes.every(r => typeof r === 'string'))
+		item.recipes = obj.recipes;
+	if (typeof obj.dateAdded === 'string') item.dateAdded = clampTimestamp(obj.dateAdded);
+	if (typeof obj.lastUpdated === 'string') item.lastUpdated = clampTimestamp(obj.lastUpdated);
+	if (typeof obj.deleted === 'boolean') item.deleted = obj.deleted;
+	if (typeof obj.deletedAt === 'string') item.deletedAt = clampTimestamp(obj.deletedAt);
+	if (typeof obj.sortIndex === 'number') item.sortIndex = obj.sortIndex;
+	return item;
+}
+
+function sanitizeStringArray(raw: unknown): string[] {
+	if (!Array.isArray(raw)) return [];
+	return raw.filter((s): s is string => typeof s === 'string');
+}
+
+// Parse and validate incoming list data, stripping unknown fields and clamping
+// future timestamps. Returns null if the payload is structurally invalid.
+function sanitizeListData(raw: unknown): ListData | null {
+	if (!raw || typeof raw !== 'object') return null;
+	const obj = raw as Record<string, unknown>;
+	if (!Array.isArray(obj.items)) return null;
+	return {
+		items: obj.items.map(sanitizeItem).filter((i): i is Item => i !== null),
+		recipeOrder: sanitizeStringArray(obj.recipeOrder),
+		storeSections: sanitizeStringArray(obj.storeSections),
+	};
+}
+
 export interface Env {
 	GROCERYLIST: DurableObjectNamespace;
 }
@@ -54,10 +104,16 @@ export class GroceryList {
 		}
 		if (request.method === 'PUT') {
 			const body = await request.text();
-			await this.state.storage.put('data', body);
+			if (new TextEncoder().encode(body).length > MAX_LIST_BYTES)
+				return new Response('Payload too large', { status: 413 });
+			const sanitized = sanitizeListData(JSON.parse(body));
+			if (!sanitized)
+				return new Response('Invalid list data', { status: 400 });
+			const stored = JSON.stringify(sanitized);
+			await this.state.storage.put('data', stored);
 			// Broadcast to any connected WS clients (e.g. when options list is updated via REST)
 			for (const ws of this.state.getWebSockets()) {
-				ws.send(body);
+				ws.send(stored);
 			}
 			return new Response(JSON.stringify({ success: true }), {
 				headers: { 'Content-Type': 'application/json' },
@@ -66,8 +122,16 @@ export class GroceryList {
 		return new Response('Method not allowed', { status: 405 });
 	}
 
-	async webSocketMessage(_ws: WebSocket, message: string): Promise<void> {
-		const incoming = JSON.parse(message) as ListData;
+	async webSocketMessage(ws: WebSocket, message: string): Promise<void> {
+		if (new TextEncoder().encode(message).length > MAX_LIST_BYTES) {
+			ws.close(1009, 'Message too large');
+			return;
+		}
+		const incoming = sanitizeListData(JSON.parse(message));
+		if (!incoming) {
+			ws.close(1008, 'Invalid list data');
+			return;
+		}
 		const existing = await this.state.storage.get<string>('data');
 		const existingData: ListData = existing ? JSON.parse(existing) : blankList;
 
@@ -78,6 +142,10 @@ export class GroceryList {
 		};
 
 		const mergedStr = JSON.stringify(merged);
+		if (new TextEncoder().encode(mergedStr).length > MAX_LIST_BYTES) {
+			ws.close(1009, 'List size limit exceeded');
+			return;
+		}
 		await this.state.storage.put('data', mergedStr);
 
 		for (const client of this.state.getWebSockets()) {

@@ -41,19 +41,6 @@ const getOptionsBackup = (optionsListName: string): { data: ListData; timestamp:
 	}
 };
 
-const getNewestOfEachItem = (itemList: Item[]): Item[] => {
-	const latestItems: { [key: string]: Item } = {};
-	itemList.forEach(item => {
-		const existing = latestItems[item.name];
-		const itemLastUpdated = item.lastUpdated || "1970-01-01T00:00:00Z";
-		const existingLastUdpated = existing?.lastUpdated || "1970-01-01T00:00:00Z";
-		if (!existing || (itemLastUpdated > existingLastUdpated)) {
-			latestItems[item.name] = item;
-		}
-	});
-
-	return Object.values(latestItems);
-};
 
 const fetchListData = async (listName: string): Promise<ListData> => {
 	const res = await fetch(`/api/state/${listName}`);
@@ -78,7 +65,6 @@ const fetchListData = async (listName: string): Promise<ListData> => {
 
 export default function App() {
 	const [currentList, setCurrentList] = useState<Item[]>([]);
-	const [force, setForce] = useState<boolean>(false);
 	const [possibleItems, setPossibleItems] = useState<Item[]>([]);
 	// Current list's own metadata (for saving back to this list)
 	const [currentListMeta, setCurrentListMeta] = useState<{ recipeOrder: string[]; storeSections: string[] }>({ recipeOrder: [], storeSections: [] });
@@ -108,9 +94,9 @@ export default function App() {
 	const toggleSectionCollapse = (section: keyof typeof collapsedSections) => {
 		setCollapsedSections(prev => ({ ...prev, [section]: !prev[section] }));
 	};
-	// TODO: Combine isSaving and isErrorSaving into a single status state to simplify?
-	const [isSaving, setIsSaving] = useState<boolean>(false);
-	const [isErrorSaving, setErrorSaving] = useState<boolean>(false);
+	const [wsConnected, setWsConnected] = useState<boolean | null>(null);
+	const wsRef = useRef<WebSocket | null>(null);
+	const skipNextSend = useRef<boolean>(false);
 	const [showAddRecipeModal, setShowAddRecipeModal] = useState<boolean>(false);
 	const [showHelpModal, setShowHelpModal] = useState<boolean>(false);
 	const [backupAvailable, setBackupAvailable] = useState<{ data: ListData; timestamp: string } | null>(null);
@@ -240,61 +226,41 @@ export default function App() {
 		loadData();
 	}, [listName, optionsListName]);
 
-	const saveList = async () => {
-		setIsSaving(true);
-		setErrorSaving(false);
-
-		try {
-			// Merge with server data
-			let mergedItems = currentList;
-			if (!force) {
-				const serverData = await fetchListData(listName);
-				mergedItems = getNewestOfEachItem([...serverData.items, ...currentList]);
-			} else {
-				mergedItems = activeItems.filter(item => ["need", "carted"].includes(item.status || ""));
-			}
-
-			// When current list IS the options list, use UI state (reflects edits)
-			// Otherwise, use the list's own metadata
-			const isOwnOptionsSource = listName === optionsListName;
-			const listData: ListData = {
-				items: mergedItems,
-				recipeOrder: isOwnOptionsSource ? recipeOrder : currentListMeta.recipeOrder,
-				storeSections: isOwnOptionsSource ? effectiveSortOrder : currentListMeta.storeSections
-			};
-
-			await fetch(`/api/state/${listName}`, {
-				method: 'PUT',
-				headers: { 'Content-Type': 'application/json' },
-				body: JSON.stringify(listData)
-			}).then(response => {
-				if (!response.ok) {
-					console.error(`Error: ${response.status}`);
-					setErrorSaving(true);
-				}
-				setTimeout(() => setIsSaving(false), 1000);
-			});
-
-			// If this list is also the options source, update possibleItems
-			if (isOwnOptionsSource) {
-				setPossibleItems(mergedItems);
-			}
-		} catch (err) {
-			console.error("Save error", err);
-			setErrorSaving(true);
-			setIsSaving(false);
-		}
-		setForce(false);
-	};
-
-	// Auto-save when list changes
+	// WebSocket connection for the main list
 	useEffect(() => {
-		const timeoutId = setTimeout(() => {
-			console.debug("Auto-saving currentList", currentList);
-			saveList();
-		}, 2000);
+		const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+		const basePath = window.location.pathname.replace(/\/+$/, '');
+		const ws = new WebSocket(`${protocol}//${window.location.host}${basePath}/api/ws/${listName}`);
+		wsRef.current = ws;
 
-		return () => clearTimeout(timeoutId);
+		ws.onopen = () => setWsConnected(true);
+		ws.onclose = () => { setWsConnected(false); wsRef.current = null; };
+		ws.onerror = () => setWsConnected(false);
+		ws.onmessage = (event) => {
+			const data = JSON.parse(event.data) as ListData;
+			skipNextSend.current = true;
+			setCurrentList(data.items);
+			setCurrentListMeta({ recipeOrder: data.recipeOrder, storeSections: data.storeSections });
+			setIsLoading(false);
+			setWsConnected(true);
+		};
+
+		return () => ws.close();
+	}, [listName]);
+
+	// Send local changes to server immediately
+	useEffect(() => {
+		if (skipNextSend.current) {
+			skipNextSend.current = false;
+			return;
+		}
+		const ws = wsRef.current;
+		if (!ws || ws.readyState !== WebSocket.OPEN || isLoading) return;
+		ws.send(JSON.stringify({
+			items: currentList,
+			recipeOrder: currentListMeta.recipeOrder,
+			storeSections: currentListMeta.storeSections,
+		}));
 		// eslint-disable-next-line react-hooks/exhaustive-deps
 	}, [currentList]);
 	const getNow = () => new Date().toISOString();
@@ -450,7 +416,6 @@ export default function App() {
 				? { ...item, deleted: true, deletedAt: now, lastUpdated: now }
 				: item
 		);
-		setForce(true);
 		setCurrentList(updated);
 	};
 
@@ -578,13 +543,7 @@ export default function App() {
 			<button onClick={() => setIsSorting(!isSorting)} className={isSorting ? 'active-mode' : ''}>
 				{isSorting ? "Done Sorting" : "Sort Items"}
 			</button>
-			<button
-				onClick={() => saveList()}
-				className={isSaving ? 'saving' : isErrorSaving ? 'error' : ''}
-				disabled={isSaving}
-			>
-				{isSaving ? `Saving` : isErrorSaving ? `Error Saving!` : `Save List`}
-			</button>
+			{wsConnected === false && <span className="error">Disconnected</span>}
 
 			<hr />
 

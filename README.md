@@ -2,10 +2,11 @@
 
 A simple grocery list application built with preeact, TypeScript, Vite, and Cloudflare Workers.
 
-You can create a list by visiting a given hash: https://grocery-list.lkbm.workers.dev/#your-list-name
+You can create a list by visiting a given hash: https://lucamasters.com/grocery/#your-list-name
 It will be saved to Cloudflare Durable Objects.
+(Note that if you deploy your own, the current origin check might fail. This is customized to work with the special routing logic I use on my main domain, rather than running as an independent worker with its own subdomain.)
 
-The "Standard items" list will be empty by default. You can create a second list, https://grocery-list.lkbm.workers.dev/#your-list-name-options and populate it with items you frequently purchase, and that will then populate the Standard items section of your main list.
+The "Standard items" list will be empty by default. You can create a second list, https://lucamasters.com/grocery/#your-list-name-options and populate it with items you frequently purchase, and that will then populate the Standard items section of your main list.
 
 Typically, after a shopping trip, I'll use "Prune Purchases" to clear out anything I bought (hopefully everything!) -- the "Remove Items" button will put you in a mode where you can select items to delete individually, but I find that's rarely needed.
 

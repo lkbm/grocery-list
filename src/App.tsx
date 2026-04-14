@@ -13,8 +13,6 @@ declare global {
 
 const DEFAULT_RECIPE = "default items";
 
-const DEFAULT_DATE = "1970-01-01T00:00:00Z";
-
 // localStorage backup helpers for options data
 const getBackupKey = (optionsListName: string) => `grocery-backup:${optionsListName}`;
 
@@ -42,26 +40,6 @@ const getOptionsBackup = (optionsListName: string): { data: ListData; timestamp:
 };
 
 
-const fetchListData = async (listName: string): Promise<ListData> => {
-	const res = await fetch(`/api/state/${listName}`);
-	const data = (await res.json().catch(() => (blankList))) as ListData;
-
-	try {
-		const rawItems = data?.items || [];
-		const items = rawItems.map((item: Item) => ({
-			...item,
-			dateAdded: item.dateAdded || DEFAULT_DATE,
-			lastUpdated: item.lastUpdated || DEFAULT_DATE,
-		}));
-		return {
-			items,
-			recipeOrder: data?.recipeOrder || [],
-			storeSections: data?.storeSections || [],
-		};
-	} catch {
-		return blankList;
-	}
-};
 
 export default function App() {
 	const [currentList, setCurrentList] = useState<Item[]>([]);
@@ -96,6 +74,7 @@ export default function App() {
 	};
 	const [wsConnected, setWsConnected] = useState<boolean | null>(null);
 	const wsRef = useRef<WebSocket | null>(null);
+	const wsOptionsRef = useRef<WebSocket | null>(null);
 	const skipNextSend = useRef<boolean>(false);
 	const [showAddRecipeModal, setShowAddRecipeModal] = useState<boolean>(false);
 	const [showHelpModal, setShowHelpModal] = useState<boolean>(false);
@@ -186,45 +165,33 @@ export default function App() {
 		return Array.from(itemMap.values());
 	}, [possibleItems, activeItems]);
 
-	// Load initial state:
+	// WebSocket connection for the options list
 	useEffect(() => {
-		const loadData = async () => {
-			// Load both the current list and options list (both use unified ListData format)
-			const [currentListData, optionsData] = await Promise.all([
-				fetchListData(listName),
-				fetchListData(optionsListName)
-			]);
+		const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+		const basePath = window.location.pathname.replace(/\/+$/, '');
+		const ws = new WebSocket(`${protocol}//${window.location.host}${basePath}/api/ws/${optionsListName}`);
+		wsOptionsRef.current = ws;
 
-			// Current list items and its own metadata (for saving)
-			setCurrentList(currentListData.items);
-			setCurrentListMeta({
-				recipeOrder: currentListData.recipeOrder,
-				storeSections: currentListData.storeSections
-			});
+		let backupBannerShown = false;
 
-			// Options list data (for UI: available items, recipe picker, sort order)
-			setPossibleItems(optionsData.items);
-			setRecipeOrder(optionsData.recipeOrder);
-			setStoreSections(optionsData.storeSections);
-
-			// Save backup if we got real options data
-			if (optionsData.items.length > 0) {
-				saveOptionsBackup(optionsListName, optionsData);
-			}
-
-			// Check if options are empty but we have a backup
-			if (optionsData.items.length === 0) {
+		ws.onmessage = (event) => {
+			const data = JSON.parse(event.data) as ListData;
+			if (data.items.length > 0) {
+				saveOptionsBackup(optionsListName, data);
+			} else if (!backupBannerShown) {
+				backupBannerShown = true;
 				const backup = getOptionsBackup(optionsListName);
 				if (backup && backup.data.items.length > 0) {
 					setBackupAvailable(backup);
 				}
 			}
-
-			setIsLoading(false);
+			setPossibleItems(data.items);
+			setRecipeOrder(data.recipeOrder);
+			setStoreSections(data.storeSections);
 		};
 
-		loadData();
-	}, [listName, optionsListName]);
+		return () => ws.close();
+	}, [optionsListName]);
 
 	// WebSocket connection for the main list
 	useEffect(() => {
@@ -274,21 +241,17 @@ export default function App() {
 	const restoreFromBackup = async () => {
 		if (!backupAvailable) return;
 		const { data } = backupAvailable;
-		await saveOptionsData(data.items, data.recipeOrder, data.storeSections);
+		saveOptionsData(data.items, data.recipeOrder, data.storeSections);
 		setBackupAvailable(null);
 	};
 
 	const dismissBackup = () => setBackupAvailable(null);
 
-	const saveOptionsData = async (items: Item[], recipes: string[], sections?: string[]) => {
+	const saveOptionsData = (items: Item[], recipes: string[], sections?: string[]) => {
 		// Use provided sections, or current effectiveSortOrder to persist any auto-discovered categories
 		const sectionsToSave = sections ?? effectiveSortOrder;
 		const optionsData: ListData = { items, recipeOrder: recipes, storeSections: sectionsToSave };
-		await fetch(`/api/state/${optionsListName}`, {
-			method: 'PUT',
-			headers: { 'Content-Type': 'application/json' },
-			body: JSON.stringify(optionsData),
-		});
+		wsOptionsRef.current?.send(JSON.stringify(optionsData));
 		setPossibleItems(items);
 		setRecipeOrder(recipes);
 		setStoreSections(sectionsToSave);
@@ -326,7 +289,7 @@ export default function App() {
 			}
 		}
 
-		await saveOptionsData(updatedItems, newRecipeOrder);
+		saveOptionsData(updatedItems, newRecipeOrder);
 	};
 
 	const deleteRecipe = async (recipeName: string) => {
@@ -340,7 +303,7 @@ export default function App() {
 			return { ...item, recipes: newRecipes };
 		});
 
-		await saveOptionsData(updatedItems, newRecipeOrder);
+		saveOptionsData(updatedItems, newRecipeOrder);
 	};
 
 	const reorderRecipe = (recipeName: string, newIndex: number) => {
@@ -388,7 +351,7 @@ export default function App() {
 
 			// Also remove from possibleItems
 			const updatedPossibleItems = possibleItems.filter(item => item.category !== sectionName);
-			await saveOptionsData(updatedPossibleItems, recipeOrder, newSections);
+			saveOptionsData(updatedPossibleItems, recipeOrder, newSections);
 		} else {
 			// Move items to "unknown" category
 			const now = getNow();
@@ -404,7 +367,7 @@ export default function App() {
 					? { ...item, category: "unknown" }
 					: item
 			);
-			await saveOptionsData(updatedPossibleItems, recipeOrder, newSections);
+			saveOptionsData(updatedPossibleItems, recipeOrder, newSections);
 		}
 	};
 

@@ -1,4 +1,5 @@
 import { Hono } from "hono";
+import { secureHeaders } from "hono/secure-headers";
 import { serveStatic } from "hono/cloudflare-workers";
 import { blankList } from './App';
 import { Item, ListData } from './types';
@@ -20,7 +21,7 @@ function sanitizeItem(raw: unknown): Item | null {
 	if (typeof obj.name !== 'string' || !obj.name.trim()) return null;
 
 	const item: Item = { name: obj.name.trim() };
-	if (obj.status !== undefined) {
+	if (obj.status !== undefined && obj.status !== null) {
 		if (!VALID_STATUSES.has(obj.status as string)) return null;
 		item.status = obj.status as "need" | "carted";
 	}
@@ -88,6 +89,11 @@ export class GroceryList {
 
 	async fetch(request: Request): Promise<Response> {
 		if (request.headers.get('Upgrade') === 'websocket') {
+			const origin = request.headers.get('Origin');
+			const url = new URL(request.url);
+			if (origin !== null && origin !== `https://${url.hostname}`) {
+				return new Response('Forbidden', { status: 403 });
+			}
 			const pair = new WebSocketPair();
 			const [client, server] = Object.values(pair);
 			this.state.acceptWebSocket(server);
@@ -164,6 +170,26 @@ export class GroceryList {
 }
 
 const app = new Hono<{ Bindings: Env }>();
+
+const secureHeadersMiddleware = secureHeaders({
+	xFrameOptions: "DENY",
+	xContentTypeOptions: "nosniff",
+	contentSecurityPolicy: {
+		defaultSrc: ["'self'"],
+		scriptSrc: ["'self'"],
+		styleSrc: ["'self'", "'unsafe-inline'"],
+		connectSrc: ["'self'"],
+		imgSrc: ["'self'", "data:"],
+		objectSrc: ["'none'"],
+		frameAncestors: ["'none'"],
+	},
+});
+
+// Security headers only apply to the HTML shell — not API responses or WS upgrades.
+app.use("*", async (c, next) => {
+	if (c.req.path.startsWith("/api/") || c.req.header("Upgrade") === "websocket") return next();
+	return secureHeadersMiddleware(c, next);
+});
 
 app.get("/api/ws/:key", async (c) => {
 	const id = c.env.GROCERYLIST.idFromName(c.req.param("key"));

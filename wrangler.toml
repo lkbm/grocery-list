@@ -1,6 +1,6 @@
 name = "grocery-list"
 main = "src/main.tsx"
-compatibility_date = "2026-03-06"
+compatibility_date = "2026-04-14"
 compatibility_flags = [ "nodejs_compat" ]
 
 

@@ -77,8 +77,6 @@ Items are sorted by user-defined store sections (stored in `storeSections` array
 
 ## TODOs
 * Consider ratelimiting backend. Maybe some logging, as well.
-* Consider adding CSP, X-Frame-Options, X-Content-Type-Options, and Origin headers in the worker for proactive security.
-* Check Origin for websocket upgrade handler.
 * Sanitize list names.
 * "Disconnected" "button" is ugly.
 * Import/export option?

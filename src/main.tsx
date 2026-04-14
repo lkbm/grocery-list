@@ -54,6 +54,12 @@ function sanitizeListData(raw: unknown): ListData | null {
 	};
 }
 
+const VALID_KEY = /^[a-zA-Z0-9_-]{1,128}$/;
+
+function isValidKey(key: string): boolean {
+	return VALID_KEY.test(key);
+}
+
 export interface Env {
 	GROCERYLIST: DurableObjectNamespace;
 }
@@ -192,19 +198,25 @@ app.use("*", async (c, next) => {
 });
 
 app.get("/api/ws/:key", async (c) => {
-	const id = c.env.GROCERYLIST.idFromName(c.req.param("key"));
+	const key = c.req.param("key");
+	if (!isValidKey(key)) return c.text("Invalid list name", 400);
+	const id = c.env.GROCERYLIST.idFromName(key);
 	const stub = c.env.GROCERYLIST.get(id);
 	return stub.fetch(c.req.raw);
 });
 
 app.get("/api/state/:key", async (c) => {
-	const id = c.env.GROCERYLIST.idFromName(c.req.param("key"));
+	const key = c.req.param("key");
+	if (!isValidKey(key)) return c.text("Invalid list name", 400);
+	const id = c.env.GROCERYLIST.idFromName(key);
 	const stub = c.env.GROCERYLIST.get(id);
 	return stub.fetch(c.req.raw);
 });
 
 app.put("/api/state/:key", async (c) => {
-	const id = c.env.GROCERYLIST.idFromName(c.req.param("key"));
+	const key = c.req.param("key");
+	if (!isValidKey(key)) return c.text("Invalid list name", 400);
+	const id = c.env.GROCERYLIST.idFromName(key);
 	const stub = c.env.GROCERYLIST.get(id);
 	return stub.fetch(c.req.raw);
 });

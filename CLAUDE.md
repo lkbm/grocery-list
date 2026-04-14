@@ -77,7 +77,6 @@ Items are sorted by user-defined store sections (stored in `storeSections` array
 
 ## TODOs
 * Consider ratelimiting backend. Maybe some logging, as well.
-* Sanitize list names.
 * "Disconnected" "button" is ugly.
 * Import/export option?
 * ListItem is a div-input, but AvailableItem and CustomItem are buttons. I'd like shared element types so the styles are more consistent.

@@ -94,7 +94,7 @@ export default function App() {
 		window.scrollTo({ top: 0, behavior: 'smooth' });
 	}, []);
 
-	const listName = window.location.hash.slice(1) || "default-list";
+	const listName = (window.location.hash.slice(1).replace(/[^a-zA-Z0-9_-]/g, '').slice(0, 128)) || "default-list";
 	// If we're on an -options list, use it directly; otherwise append -options
 	const optionsListName = listName.endsWith('-options') ? listName : `${listName}-options`;
 

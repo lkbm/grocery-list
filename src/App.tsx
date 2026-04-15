@@ -156,7 +156,8 @@ export default function App() {
 		const itemMap = new Map<string, Item>();
 		// Add possibleItems first
 		possibleItems.forEach(item => itemMap.set(item.name, item));
-		// Add activeItems (currentList items override if same name)
+		// Add activeItems (possibleItems items override if same name)
+		// TODO: Should we override possibleItems with currentList?
 		activeItems.forEach(item => {
 			if (!itemMap.has(item.name)) {
 				itemMap.set(item.name, item);
@@ -223,13 +224,15 @@ export default function App() {
 		}
 		const ws = wsRef.current;
 		if (!ws || ws.readyState !== WebSocket.OPEN || isLoading) return;
+		// TODO: Should we reconned if not open?
 		ws.send(JSON.stringify({
 			items: currentList,
 			recipeOrder: currentListMeta.recipeOrder,
 			storeSections: currentListMeta.storeSections,
 		}));
+		// TODO: Should we just include isLoading in the deps?
 		// eslint-disable-next-line react-hooks/exhaustive-deps
-	}, [currentList]);
+	}, [currentList, currentListMeta]);
 	const getNow = () => new Date().toISOString();
 
 	useEffect(() => {
@@ -251,7 +254,10 @@ export default function App() {
 		// Use provided sections, or current effectiveSortOrder to persist any auto-discovered categories
 		const sectionsToSave = sections ?? effectiveSortOrder;
 		const optionsData: ListData = { items, recipeOrder: recipes, storeSections: sectionsToSave };
-		wsOptionsRef.current?.send(JSON.stringify(optionsData));
+		const ws = wsRef.current;
+		if (!ws || ws.readyState !== WebSocket.OPEN || isLoading) return;
+		// TODO: Do we need to handle non-ready state? Reconnect?
+		ws.send(JSON.stringify(optionsData));
 		setPossibleItems(items);
 		setRecipeOrder(recipes);
 		setStoreSections(sectionsToSave);
@@ -650,6 +656,7 @@ const AddItems = memo(({ onAddItem, possibleItems, activeItemNames, recipeOrder,
 
 	// Standard items: default items not already on the list
 	const standardItems = useMemo(() => {
+		// TODO: Missing categories end up at the otp (b/c indexOf is -1)
 		return possibleItems
 			.filter((item) => isDefaultItem(item) && !activeItemNames.includes(item.name))
 			.sort((a, b) => {
@@ -962,9 +969,9 @@ const AddItems = memo(({ onAddItem, possibleItems, activeItemNames, recipeOrder,
 			<div className="item-grid">
 				<span onClick={onHelpClick} className="footer-link help-link">Help</span>
 				{listName.endsWith('-options') ? (
-					<a href={`#${listName.slice(0, -8)}`} target="_blank" className="footer-link">Go to List</a>
+					<a href={`#${listName.slice(0, -8)}`} target="_blank" rel="noopener noreferrer" className="footer-link">Go to List</a>
 				) : (
-					<a href={`#${listName}-options`} className="footer-link" target="_blank">Edit Options</a>
+					<a href={`#${listName}-options`} className="footer-link" rel="noopener noreferrer" target="_blank">Edit Options</a>
 				)}
 				<a href="https://ko-fi.com/lucamasters" target="_blank" rel="noopener noreferrer" className="footer-link">
 					Support me on Ko-Fi.
@@ -1006,15 +1013,16 @@ interface ListItemProps {
 }
 
 const ListItem = ({ item, currentValue, toggleCurrentItems, registerRef }: ListItemProps) => {
+	const itemId = `item-${encodeURIComponent(item.name)}`
 	return (
 		<div ref={el => registerRef?.(item.name, el)}>
 			<input
 				type="checkbox"
 				checked={currentValue}
-				id={item.name}
+				id={itemId}
 				onChange={() => toggleCurrentItems(item.name)}
 			/>
-			<label htmlFor={item.name}>
+			<label htmlFor={itemId}>
 				{item.name}
 			</label>
 		</div>
@@ -1235,6 +1243,7 @@ const AddRecipeModal = ({ possibleItems, storeSections, onSave, onClose }: AddRe
 		});
 		return grouped;
 	}, [recipeItems]);
+	storeSections = ["unknown", ...storeSections.filter(s => s !== "unknown")];
 
 	return (
 		<div className="modal-overlay" onClick={onClose}>

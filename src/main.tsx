@@ -62,6 +62,7 @@ function isValidKey(key: string): boolean {
 
 export interface Env {
 	GROCERYLIST: DurableObjectNamespace;
+	GROCERY_RATE_LIMITER: { limit(opts: { key: string }): Promise<{ success: boolean }> };
 }
 
 const getNewestOfEachItem = (itemList: Item[]): Item[] => {
@@ -189,6 +190,15 @@ const secureHeadersMiddleware = secureHeaders({
 		objectSrc: ["'none'"],
 		frameAncestors: ["'none'"],
 	},
+});
+
+app.use("*", async (c, next) => {
+	const ip = c.req.header("CF-Connecting-IP") ?? "unknown";
+	const { success } = await c.env.GROCERY_RATE_LIMITER.limit({ key: ip });
+
+	if (!success) return c.text("Too many requests", 429);
+
+	return next();
 });
 
 // Security headers only apply to the HTML shell — not API responses or WS upgrades.

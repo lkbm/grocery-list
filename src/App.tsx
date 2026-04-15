@@ -75,6 +75,10 @@ export default function App() {
 	const [wsConnected, setWsConnected] = useState<boolean | null>(null);
 	const wsRef = useRef<WebSocket | null>(null);
 	const wsOptionsRef = useRef<WebSocket | null>(null);
+	const mainReconnectTimeoutRef = useRef<number | null>(null);
+	const optionsReconnectTimeoutRef = useRef<number | null>(null);
+	const mainReconnectAttemptsRef = useRef<number>(0);
+	const optionsReconnectAttemptsRef = useRef<number>(0);
 	const skipNextSend = useRef<boolean>(false);
 	const [showAddRecipeModal, setShowAddRecipeModal] = useState<boolean>(false);
 	const [showHelpModal, setShowHelpModal] = useState<boolean>(false);
@@ -166,12 +170,70 @@ export default function App() {
 		return Array.from(itemMap.values());
 	}, [possibleItems, activeItems]);
 
+	const clearMainReconnectTimer = () => {
+		if (mainReconnectTimeoutRef.current !== null) {
+			window.clearTimeout(mainReconnectTimeoutRef.current);
+			mainReconnectTimeoutRef.current = null;
+		}
+	};
+
+	const clearOptionsReconnectTimer = () => {
+		if (optionsReconnectTimeoutRef.current !== null) {
+			window.clearTimeout(optionsReconnectTimeoutRef.current);
+			optionsReconnectTimeoutRef.current = null;
+		}
+	};
+
+	const scheduleMainReconnect = () => {
+		if (mainReconnectTimeoutRef.current !== null) return;
+		const attempt = mainReconnectAttemptsRef.current + 1;
+		mainReconnectAttemptsRef.current = attempt;
+		const delay = Math.min(1000 * 2 ** (attempt - 1), 15000);
+		mainReconnectTimeoutRef.current = window.setTimeout(() => {
+			mainReconnectTimeoutRef.current = null;
+			openMainSocket();
+		}, delay);
+	};
+
+	const scheduleOptionsReconnect = () => {
+		if (optionsReconnectTimeoutRef.current !== null) return;
+		const attempt = optionsReconnectAttemptsRef.current + 1;
+		optionsReconnectAttemptsRef.current = attempt;
+		const delay = Math.min(1000 * 2 ** (attempt - 1), 15000);
+		optionsReconnectTimeoutRef.current = window.setTimeout(() => {
+			optionsReconnectTimeoutRef.current = null;
+			openOptionsSocket();
+		}, delay);
+	};
+
+	const reconnect = () => {
+		clearMainReconnectTimer();
+		clearOptionsReconnectTimer();
+		mainReconnectAttemptsRef.current = 0;
+		optionsReconnectAttemptsRef.current = 0;
+
+		const mainWs = wsRef.current;
+		if (!mainWs || mainWs.readyState === WebSocket.CLOSED) {
+			openMainSocket();
+		}
+		const optionsWs = wsOptionsRef.current;
+		if (!optionsWs || optionsWs.readyState === WebSocket.CLOSED) {
+			openOptionsSocket();
+		}
+	};
+
 	// WebSocket connection for the options list
-	useEffect(() => {
+	const openOptionsSocket = () => {
+		const existing = wsOptionsRef.current;
+		if (existing && (existing.readyState === WebSocket.OPEN || existing.readyState === WebSocket.CONNECTING || existing.readyState === WebSocket.CLOSING)) {
+			return () => { };
+		}
+
 		const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
 		const basePath = window.location.pathname.replace(/\/+$/, '');
 		const ws = new WebSocket(`${protocol}//${window.location.host}${basePath}/api/ws/${optionsListName}`);
 		wsOptionsRef.current = ws;
+		clearOptionsReconnectTimer();
 
 		let backupBannerShown = false;
 
@@ -191,19 +253,60 @@ export default function App() {
 			setStoreSections(data.storeSections);
 		};
 
-		return () => ws.close();
-	}, [optionsListName]);
+		ws.onopen = () => {
+			optionsReconnectAttemptsRef.current = 0;
+			clearOptionsReconnectTimer();
+		};
+
+		ws.onclose = () => {
+			if (wsOptionsRef.current === ws) {
+				wsOptionsRef.current = null;
+				scheduleOptionsReconnect();
+			}
+		};
+
+		return () => {
+			if (wsOptionsRef.current === ws) {
+				wsOptionsRef.current = null;
+			}
+			clearOptionsReconnectTimer();
+			optionsReconnectAttemptsRef.current = 0;
+			ws.close();
+		};
+	};
+	// eslint-disable-next-line react-hooks/exhaustive-deps
+	useEffect(openOptionsSocket, [optionsListName]);
 
 	// WebSocket connection for the main list
-	useEffect(() => {
+	const openMainSocket = () => {
+		const existing = wsRef.current;
+		if (existing && (existing.readyState === WebSocket.OPEN || existing.readyState === WebSocket.CONNECTING || existing.readyState === WebSocket.CLOSING)) {
+			return () => { };
+		}
+
 		const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
 		const basePath = window.location.pathname.replace(/\/+$/, '');
 		const ws = new WebSocket(`${protocol}//${window.location.host}${basePath}/api/ws/${listName}`);
 		wsRef.current = ws;
+		clearMainReconnectTimer();
 
-		ws.onopen = () => setWsConnected(true);
-		ws.onclose = () => { setWsConnected(false); wsRef.current = null; };
-		ws.onerror = () => setWsConnected(false);
+		ws.onopen = () => {
+			setWsConnected(true);
+			mainReconnectAttemptsRef.current = 0;
+			clearMainReconnectTimer();
+		};
+		ws.onclose = () => {
+			if (wsRef.current === ws) {
+				setWsConnected(false);
+				wsRef.current = null;
+				scheduleMainReconnect();
+			}
+		};
+		ws.onerror = () => {
+			if (wsRef.current === ws) {
+				setWsConnected(false);
+			}
+		};
 		ws.onmessage = (event) => {
 			const data = JSON.parse(event.data) as ListData;
 			skipNextSend.current = true;
@@ -213,8 +316,17 @@ export default function App() {
 			setWsConnected(true);
 		};
 
-		return () => ws.close();
-	}, [listName]);
+		return () => {
+			if (wsRef.current === ws) {
+				wsRef.current = null;
+			}
+			clearMainReconnectTimer();
+			mainReconnectAttemptsRef.current = 0;
+			ws.close();
+		};
+	}
+	// eslint-disable-next-line react-hooks/exhaustive-deps
+	useEffect(openMainSocket, [listName]);
 
 	// Send local changes to server immediately
 	useEffect(() => {
@@ -254,7 +366,7 @@ export default function App() {
 		// Use provided sections, or current effectiveSortOrder to persist any auto-discovered categories
 		const sectionsToSave = sections ?? effectiveSortOrder;
 		const optionsData: ListData = { items, recipeOrder: recipes, storeSections: sectionsToSave };
-		const ws = wsRef.current;
+		const ws = wsOptionsRef.current;
 		if (!ws || ws.readyState !== WebSocket.OPEN || isLoading) return;
 		// TODO: Do we need to handle non-ready state? Reconnect?
 		ws.send(JSON.stringify(optionsData));
@@ -512,7 +624,7 @@ export default function App() {
 			<button onClick={() => setIsSorting(!isSorting)} className={isSorting ? 'active-mode' : ''}>
 				{isSorting ? "Done Sorting" : "Sort Items"}
 			</button>
-			{wsConnected === false && <span className="error">Disconnected</span>}
+			{wsConnected === false && <button onClick={reconnect} className="error">Disconnected</button>}
 
 			<hr />
 

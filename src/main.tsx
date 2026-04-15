@@ -97,7 +97,7 @@ export class GroceryList {
 		if (request.headers.get('Upgrade') === 'websocket') {
 			const origin = request.headers.get('Origin');
 			const url = new URL(request.url);
-			if (origin !== null && origin !== `https://${url.hostname}` && !origin.startsWith('http://localhost')) {
+			if (origin !== null && origin !== `https://${url.hostname}` && origin === 'http://localhost' || /^http:\/\/localhost:\d+$/.test(origin || '')) {
 				return new Response('Forbidden', { status: 403 });
 			}
 			const pair = new WebSocketPair();

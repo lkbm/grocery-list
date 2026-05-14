@@ -96,11 +96,11 @@ export class GroceryList {
 
 	async fetch(request: Request): Promise<Response> {
 		if (request.headers.get('Upgrade') === 'websocket') {
-			const origin = request.headers.get('Origin');
-			const url = new URL(request.url);
-			if (origin !== null && origin !== `https://${url.hostname}` && origin === 'http://localhost' || /^http:\/\/localhost:\d+$/.test(origin || '')) {
-				return new Response('Forbidden', { status: 403 });
-			}
+			// const origin = request.headers.get('Origin');
+			// const url = new URL(request.url);
+			// if (origin !== null && origin !== `https://${url.hostname}` && origin === 'http://localhost' || /^http:\/\/localhost:\d+$/.test(origin || '')) {
+			// 	return new Response('Forbidden', { status: 403 });
+			// }
 			const pair = new WebSocketPair();
 			const [client, server] = Object.values(pair);
 			this.state.acceptWebSocket(server);

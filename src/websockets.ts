@@ -206,7 +206,7 @@ export const useListSocket = (listName: string) => {
 		if (!ws || ws.readyState !== WebSocket.OPEN || isLoading) return;
 		ws.send(JSON.stringify({
 			items: currentList,
-			recipes: currentListMeta.recipeOrder,
+			recipeOrder: currentListMeta.recipeOrder,
 			storeSections: currentListMeta.storeSections,
 		}));
 	}, [currentList, currentListMeta, isLoading]); // eslint-disable-line react-hooks/exhaustive-deps

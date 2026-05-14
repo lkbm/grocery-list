@@ -16,7 +16,7 @@ interface AddItemsProps {
 	onReorderRecipe: (recipeName: string, newIndex: number) => void;
 	onReorderSection: (sectionName: string, newIndex: number) => void;
 	onAddSection: (sectionName: string) => void;
-	onDeleteSection: (sectionName: string, deleteItems: boolean) => Promise<void>;
+	onDeleteSection: (sectionName: string, deleteItems: boolean) => void;
 	collapsedSections: { sections: boolean; standardItems: boolean };
 	onToggleSectionCollapse: (section: 'sections' | 'standardItems') => void;
 	listName: string;
@@ -121,9 +121,9 @@ export const AddItems = memo(({ onAddItem, possibleItems, activeItemNames, recip
 		}
 	};
 
-	const handleDeleteConfirm = async () => {
+	const handleDeleteConfirm = () => {
 		if (deletingSectionName) {
-			await onDeleteSection(deletingSectionName, deleteItemsChecked);
+			onDeleteSection(deletingSectionName, deleteItemsChecked);
 			setDeletingSectionName(null);
 			setDeleteItemsChecked(false);
 		}

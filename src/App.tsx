@@ -8,8 +8,9 @@ import { DEFAULT_RECIPE, isDefaultItem, getNow } from './helpers';
 import { AddItems } from './AddItems';
 import { DraggableItem } from './DraggableItem';
 import { useOptionsSocket, useListSocket } from './websockets';
+import { useSortOrder } from './useSortOrder';
 
-export const blankList = { items: [], recipes: [], storeSections: [] };
+export const blankList = { items: [], recipeOrder: [], storeSections: [] };
 
 declare global {
 	interface Window {
@@ -113,30 +114,15 @@ export default function App() {
 		return () => window.removeEventListener('scroll', checkSkippedItems);
 	}, [activeItems]);
 
-	// Effective sort order: stored sections + any new categories from items (backwards compatibility)
-	const effectiveSortOrder = useMemo(() => {
-		// Start with stored sections, or defaults if empty
-		const sections = storeSections.length > 0 ? [...storeSections] : [];
-
-		// Find all unique categories from items that aren't in sections yet
-		const allCategories = new Set<string>();
-		activeItems.forEach((item) => {
-			if (item.category) allCategories.add(item.category);
-		});
-
-		possibleItems.forEach((item) => {
-			if (item.category) allCategories.add(item.category);
-		});
-
-		// Add any missing categories at the end
-		allCategories.forEach((category) => {
-			if (!sections.includes(category)) {
-				sections.push(category);
-			}
-		});
-
-		return sections;
-	}, [storeSections, activeItems, possibleItems]);
+	const { effectiveSortOrder, itemsByCategory, reorderSection, addSection, deleteSection, reorderItem } = useSortOrder({
+		storeSections,
+		setStoreSections,
+		activeItems,
+		possibleItems,
+		currentList,
+		setCurrentList,
+		setPossibleItems,
+	});
 
 	// Union of items from currentList and possibleItems (for recipe modal)
 	const allAvailableItems = useMemo(() => {
@@ -222,55 +208,6 @@ export default function App() {
 		setRecipes(newOrder);
 	};
 
-	const reorderSection = (sectionName: string, newIndex: number) => {
-		const oldIndex = effectiveSortOrder.indexOf(sectionName);
-		if (oldIndex === -1 || oldIndex === newIndex) return;
-
-		const newOrder = [...effectiveSortOrder];
-		newOrder.splice(oldIndex, 1);
-		newOrder.splice(newIndex, 0, sectionName);
-
-		setStoreSections(newOrder);
-	};
-
-	const addSection = (sectionName: string) => {
-		if (effectiveSortOrder.includes(sectionName)) return;
-		const newSections = [...effectiveSortOrder, sectionName];
-		setStoreSections(newSections);
-	};
-
-	const deleteSection = async (sectionName: string, deleteItems: boolean) => {
-		// Remove section from the order
-		const newSections = effectiveSortOrder.filter((s) => s !== sectionName);
-
-		if (deleteItems) {
-			// Mark all items in this category as deleted
-			const now = getNow();
-			const updatedCurrentList = currentList.map((item) =>
-				item.category === sectionName ? { ...item, deleted: true, deletedAt: now, lastUpdated: now } : item,
-			);
-			setCurrentList(updatedCurrentList);
-
-			// Also remove from possibleItems
-			const updatedPossibleItems = possibleItems.filter((item) => item.category !== sectionName);
-			setPossibleItems(updatedPossibleItems);
-			setStoreSections(newSections);
-		} else {
-			// Move items to "unknown" category
-			const now = getNow();
-			const updatedCurrentList = currentList.map((item) =>
-				item.category === sectionName ? { ...item, category: 'unknown', lastUpdated: now } : item,
-			);
-			setCurrentList(updatedCurrentList);
-
-			const updatedPossibleItems = possibleItems.map((item) =>
-				item.category === sectionName ? { ...item, category: 'unknown' } : item,
-			);
-			setPossibleItems(updatedPossibleItems);
-			setStoreSections(newSections);
-		}
-	};
-
 	const pruneList = () => {
 		const now = getNow();
 		// 1. Mark non-needed, non-deleted items as deleted
@@ -335,60 +272,6 @@ export default function App() {
 				: item,
 		);
 		setCurrentList(newItems);
-	};
-
-	const itemsByCategory = useMemo(() => {
-		const grouped: { [category: string]: Item[] } = {};
-		activeItems.forEach((item) => {
-			const category = item.category || 'unknown';
-			if (!grouped[category]) {
-				grouped[category] = [];
-			}
-			grouped[category].push(item);
-		});
-		// Sort items within each category by sortIndex (if present), then by dateAdded
-		Object.keys(grouped).forEach((category) => {
-			grouped[category].sort((a, b) => {
-				const aIndex = a.sortIndex ?? Infinity;
-				const bIndex = b.sortIndex ?? Infinity;
-				if (aIndex !== bIndex) return aIndex - bIndex;
-				// Fallback to dateAdded for items without sortIndex
-				return (a.dateAdded || '').localeCompare(b.dateAdded || '');
-			});
-		});
-		return grouped;
-	}, [activeItems]);
-
-	const reorderItem = (itemName: string, category: string, newIndex: number) => {
-		const categoryItems = itemsByCategory[category];
-		if (!categoryItems) return;
-
-		const oldIndex = categoryItems.findIndex((i) => i.name === itemName);
-		if (oldIndex === -1 || oldIndex === newIndex) return;
-
-		// Build new order for this category
-		const reordered = [...categoryItems];
-		const [moved] = reordered.splice(oldIndex, 1);
-		reordered.splice(newIndex, 0, moved);
-
-		// Assign new sortIndex values
-		const now = getNow();
-		const updates = new Map<string, number>();
-		reordered.forEach((item, idx) => {
-			updates.set(item.name, idx);
-		});
-
-		setCurrentList(
-			currentList.map((item) => {
-				if (item.category === category || (!item.category && category === 'unknown')) {
-					const newSortIndex = updates.get(item.name);
-					if (newSortIndex !== undefined) {
-						return { ...item, sortIndex: newSortIndex, lastUpdated: now };
-					}
-				}
-				return item;
-			}),
-		);
 	};
 
 	if (isLoading) return <div>Loading...</div>;

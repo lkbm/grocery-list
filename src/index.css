@@ -570,6 +570,7 @@ input[type=text] {
   gap: 0.5em;
 }
 
+.recipe-edit,
 .recipe-delete {
   width: 3em;
   min-height: 3em;
@@ -577,6 +578,12 @@ input[type=text] {
   border: 1px solid var(--border-subtle);
   color: var(--text-faint);
   font-size: 1.2em;
+}
+
+.recipe-edit:hover {
+  background-color: var(--bg-removable);
+  color: var(--text);
+  border-color: var(--text-faint);
 }
 
 .recipe-delete:hover {

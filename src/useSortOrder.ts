@@ -1,10 +1,12 @@
 import { useMemo } from 'preact/hooks';
-import { Item } from './types';
+import { Item, Tombstone } from './types';
 import { getNow } from './helpers';
 
 interface UseSortOrderParams {
 	storeSections: string[];
 	setStoreSections: (sections: string[]) => void;
+	deletedSections: Tombstone[];
+	setDeletedSections: (deletedSections: Tombstone[]) => void;
 	activeItems: Item[];
 	possibleItems: Item[];
 	currentList: Item[];
@@ -15,6 +17,8 @@ interface UseSortOrderParams {
 export const useSortOrder = ({
 	storeSections,
 	setStoreSections,
+	deletedSections,
+	setDeletedSections,
 	activeItems,
 	possibleItems,
 	currentList,
@@ -76,10 +80,11 @@ export const useSortOrder = ({
 				item.category === sectionName ? { ...item, category: 'unknown', lastUpdated: now } : item,
 			));
 			setPossibleItems(possibleItems.map((item) =>
-				item.category === sectionName ? { ...item, category: 'unknown' } : item,
+				item.category === sectionName ? { ...item, category: 'unknown', lastUpdated: now } : item,
 			));
 		}
 		setStoreSections(newSections);
+		setDeletedSections([...deletedSections, { name: sectionName, deletedAt: now }]);
 	};
 
 	const reorderItem = (itemName: string, category: string, newIndex: number) => {

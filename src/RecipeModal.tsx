@@ -9,11 +9,13 @@ interface AddRecipeModalProps {
 	storeSections: string[];
 	onSave: (recipeName: string, items: Item[]) => Promise<void>;
 	onClose: () => void;
+	editingRecipeName?: string;
+	initialItems?: Item[];
 }
 
-export const AddRecipeModal = ({ possibleItems, storeSections, onSave, onClose }: AddRecipeModalProps) => {
-	const [recipeName, setRecipeName] = useState("");
-	const [recipeItems, setRecipeItems] = useState<Item[]>([]);
+export const AddRecipeModal = ({ possibleItems, storeSections, onSave, onClose, editingRecipeName, initialItems }: AddRecipeModalProps) => {
+	const [recipeName, setRecipeName] = useState(editingRecipeName ?? "");
+	const [recipeItems, setRecipeItems] = useState<Item[]>(initialItems ?? []);
 	const [isSaving, setIsSaving] = useState(false);
 	const nameInputRef = useRef<HTMLInputElement>(null);
 
@@ -66,7 +68,7 @@ export const AddRecipeModal = ({ possibleItems, storeSections, onSave, onClose }
 		<div className="modal-overlay" onClick={onClose}>
 			<div className="modal-content" onClick={e => e.stopPropagation()}>
 				<div className="modal-header">
-					<h2>Add Recipe</h2>
+					<h2>{editingRecipeName ? "Edit Recipe" : "Add Recipe"}</h2>
 					<button className="modal-close" onClick={onClose}>&times;</button>
 				</div>
 
@@ -133,7 +135,7 @@ export const AddRecipeModal = ({ possibleItems, storeSections, onSave, onClose }
 						disabled={!recipeName.trim() || recipeItems.length === 0 || isSaving}
 						className="save-button"
 					>
-						{isSaving ? "Saving..." : "Save Recipe"}
+						{isSaving ? "Saving..." : editingRecipeName ? "Save Changes" : "Save Recipe"}
 					</button>
 				</div>
 			</div>

@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'preact/hooks';
-import { Item, ListData } from './types';
+import { Item, ListData, Tombstone } from './types';
 
 // --- Module-level helpers ---
 
@@ -126,6 +126,8 @@ export const useOptionsSocket = (listName: string) => {
 	const [backupAvailable, setBackupAvailable] = useState<{ data: ListData; timestamp: string } | null>(null);
 	const [recipes, setRecipes] = useState<string[]>([]);
 	const [storeSections, setStoreSections] = useState<string[]>([]);
+	const [deletedRecipes, setDeletedRecipes] = useState<Tombstone[]>([]);
+	const [deletedSections, setDeletedSections] = useState<Tombstone[]>([]);
 	const [isLoading, setIsLoading] = useState<boolean>(true);
 	const [possibleItems, setPossibleItems] = useState<Item[]>([]);
 	const backupBannerShown = useRef(false);
@@ -145,6 +147,8 @@ export const useOptionsSocket = (listName: string) => {
 			setPossibleItems(data.items);
 			setRecipes(data.recipeOrder);
 			setStoreSections(data.storeSections);
+			setDeletedRecipes(data.deletedRecipes ?? []);
+			setDeletedSections(data.deletedSections ?? []);
 			setIsLoading(false);
 		},
 	);
@@ -155,6 +159,8 @@ export const useOptionsSocket = (listName: string) => {
 		setPossibleItems(data.items);
 		setRecipes(data.recipeOrder);
 		setStoreSections(data.storeSections);
+		setDeletedRecipes(data.deletedRecipes ?? []);
+		setDeletedSections(data.deletedSections ?? []);
 		setBackupAvailable(null);
 	};
 
@@ -164,8 +170,14 @@ export const useOptionsSocket = (listName: string) => {
 		if (skipNextSend.current) { skipNextSend.current = false; return; }
 		const ws = wsRef.current;
 		if (!ws || ws.readyState !== WebSocket.OPEN || isLoading) return;
-		ws.send(JSON.stringify({ items: possibleItems, recipeOrder: recipes, storeSections }));
-	}, [possibleItems, recipes, storeSections]); // eslint-disable-line react-hooks/exhaustive-deps
+		ws.send(JSON.stringify({
+			items: possibleItems,
+			recipeOrder: recipes,
+			storeSections,
+			deletedRecipes,
+			deletedSections,
+		}));
+	}, [possibleItems, recipes, storeSections, deletedRecipes, deletedSections]); // eslint-disable-line react-hooks/exhaustive-deps
 
 	return {
 		backupAvailable,
@@ -174,8 +186,12 @@ export const useOptionsSocket = (listName: string) => {
 		setPossibleItems,
 		setRecipes,
 		setStoreSections,
+		setDeletedRecipes,
+		setDeletedSections,
 		recipes,
 		storeSections,
+		deletedRecipes,
+		deletedSections,
 		isOptionsLoading: isLoading,
 		possibleItems,
 		reconnectOptionsSocket,
@@ -186,16 +202,28 @@ export const useListSocket = (listName: string) => {
 	const [isLoading, setIsLoading] = useState<boolean>(true);
 	const [currentList, setCurrentList] = useState<Item[]>([]);
 	// Preserved and echoed back on save — the main list owns its own recipe/section metadata
-	const [currentListMeta, setCurrentListMeta] = useState<{ recipeOrder: string[]; storeSections: string[] }>({
+	const [currentListMeta, setCurrentListMeta] = useState<{
+		recipeOrder: string[];
+		storeSections: string[];
+		deletedRecipes: Tombstone[];
+		deletedSections: Tombstone[];
+	}>({
 		recipeOrder: [],
 		storeSections: [],
+		deletedRecipes: [],
+		deletedSections: [],
 	});
 
 	const { wsRef, skipNextSend, wsConnected, reconnect: reconnectListSocket } = useWebSocket(
 		buildWsUrl(listName),
 		(data) => {
 			setCurrentList(data.items);
-			setCurrentListMeta({ recipeOrder: data.recipeOrder, storeSections: data.storeSections });
+			setCurrentListMeta({
+				recipeOrder: data.recipeOrder,
+				storeSections: data.storeSections,
+				deletedRecipes: data.deletedRecipes ?? [],
+				deletedSections: data.deletedSections ?? [],
+			});
 			setIsLoading(false);
 		},
 	);
@@ -208,6 +236,8 @@ export const useListSocket = (listName: string) => {
 			items: currentList,
 			recipeOrder: currentListMeta.recipeOrder,
 			storeSections: currentListMeta.storeSections,
+			deletedRecipes: currentListMeta.deletedRecipes,
+			deletedSections: currentListMeta.deletedSections,
 		}));
 	}, [currentList, currentListMeta, isLoading]); // eslint-disable-line react-hooks/exhaustive-deps
 

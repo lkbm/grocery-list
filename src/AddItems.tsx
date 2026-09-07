@@ -11,6 +11,7 @@ interface AddItemsProps {
 	recipes: string[];
 	storeSections: string[];
 	onAddRecipeClick: () => void;
+	onEditRecipeClick: (recipeName: string) => void;
 	onDeleteRecipe: (recipeName: string) => Promise<void>;
 	isSorting: boolean;
 	onReorderRecipe: (recipeName: string, newIndex: number) => void;
@@ -23,7 +24,7 @@ interface AddItemsProps {
 	onHelpClick: () => void;
 }
 
-export const AddItems = memo(({ onAddItem, possibleItems, activeItemNames, recipes, storeSections, onAddRecipeClick, onDeleteRecipe, isSorting, onReorderRecipe, onReorderSection, onAddSection, onDeleteSection, collapsedSections, onToggleSectionCollapse, listName, onHelpClick }: AddItemsProps) => {
+export const AddItems = memo(({ onAddItem, possibleItems, activeItemNames, recipes, storeSections, onAddRecipeClick, onEditRecipeClick, onDeleteRecipe, isSorting, onReorderRecipe, onReorderSection, onAddSection, onDeleteSection, collapsedSections, onToggleSectionCollapse, listName, onHelpClick }: AddItemsProps) => {
 	const [expandedRecipe, setExpandedRecipe] = useState<string | null>(null);
 	// TODO: Combine the dragging state into a single object to simplify?
 	const [draggingRecipe, setDraggingRecipe] = useState<string | null>(null);
@@ -61,6 +62,16 @@ export const AddItems = memo(({ onAddItem, possibleItems, activeItemNames, recip
 		const query = searchFilter.toLowerCase();
 		return standardItems.filter(item => item.name.toLowerCase().includes(query));
 	}, [standardItems, searchFilter]);
+
+	// TODO(user): Decide when the "quick add what I typed" button should appear.
+	// It should return false once there's already an item that makes the button redundant
+	// (e.g. an exact case-insensitive match in filteredStandardItems) -- otherwise clicking
+	// it would create a duplicate item instead of reusing the existing one.
+	// trimmedFilter is the search box text with whitespace trimmed (never empty when this runs).
+	const shouldShowQuickAddButton = (trimmedFilter: string): boolean => {
+		const query = trimmedFilter.toLowerCase();
+		return !standardItems.some(item => item.name.toLowerCase() === query);
+	};
 
 	// Get items for a specific recipe
 	const getRecipeItems = (recipeName: string) => {
@@ -217,6 +228,14 @@ export const AddItems = memo(({ onAddItem, possibleItems, activeItemNames, recip
 						)}
 					</div>
 					<div className="item-grid">
+						{searchFilter.trim() && shouldShowQuickAddButton(searchFilter.trim()) && (
+							<AvailableItem
+								key="quick-add-typed-item"
+								showCategoryLabel
+								item={{ name: searchFilter.trim(), category: "unknown" }}
+								onChange={(name) => { onAddItem(name, undefined); setSearchFilter(""); }}
+							/>
+						)}
 						{filteredStandardItems.map((item, index) => (
 							<AvailableItem
 								key={`available-${item.name}`}
@@ -225,7 +244,7 @@ export const AddItems = memo(({ onAddItem, possibleItems, activeItemNames, recip
 								onChange={(name, category) => { onAddItem(name, category); setSearchFilter(""); }}
 							/>
 						))}
-						{searchFilter && filteredStandardItems.length === 0 && (
+						{searchFilter && filteredStandardItems.length === 0 && !shouldShowQuickAddButton(searchFilter.trim()) && (
 							<div className="search-no-results">No items match "{searchFilter}"</div>
 						)}
 					</div>
@@ -295,6 +314,18 @@ export const AddItems = memo(({ onAddItem, possibleItems, activeItemNames, recip
 								{recipeName}
 								<span className="recipe-count">({recipeItems.length})</span>
 							</button>
+							{!isSorting && (
+								<button
+									className="recipe-edit"
+									onClick={(e) => {
+										e.stopPropagation();
+										onEditRecipeClick(recipeName);
+									}}
+									title="Edit recipe"
+								>
+									✎
+								</button>
+							)}
 							{!isSorting && (
 								<button
 									className="recipe-delete"

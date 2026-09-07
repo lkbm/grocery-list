@@ -36,8 +36,12 @@ export default function App() {
 		setPossibleItems,
 		setRecipes,
 		setStoreSections,
+		setDeletedRecipes,
+		setDeletedSections,
 		recipes,
 		storeSections,
+		deletedRecipes,
+		deletedSections,
 		isOptionsLoading,
 		possibleItems,
 		reconnectOptionsSocket,
@@ -71,6 +75,7 @@ export default function App() {
 		setCollapsedSections((prev) => ({ ...prev, [section]: !prev[section] }));
 	};
 	const [showAddRecipeModal, setShowAddRecipeModal] = useState<boolean>(false);
+	const [editingRecipeName, setEditingRecipeName] = useState<string | null>(null);
 	const [showHelpModal, setShowHelpModal] = useState<boolean>(false);
 	const [skippedItems, setSkippedItems] = useState<string[]>([]);
 	const itemRefs = useRef<Map<string, HTMLElement>>(new Map());
@@ -117,6 +122,8 @@ export default function App() {
 	const { effectiveSortOrder, itemsByCategory, reorderSection, addSection, deleteSection, reorderItem } = useSortOrder({
 		storeSections,
 		setStoreSections,
+		deletedSections,
+		setDeletedSections,
 		activeItems,
 		possibleItems,
 		currentList,
@@ -145,41 +152,73 @@ export default function App() {
 		};
 	}, [currentList, possibleItems, recipes, storeSections]);
 
-	const addRecipe = async (recipeName: string, recipeItems: Item[]) => {
-		// Add recipe to the order
-		const newRecipeOrder = [...recipes, recipeName];
+	const saveRecipe = async (recipeName: string, recipeItems: Item[]) => {
+		const oldName = editingRecipeName;
+		const now = getNow();
+		const newItemNames = recipeItems.map((i) => i.name);
 
-		// Update possibleItems with recipe assignments
+		// Update the recipe order: rename in place when editing, append when adding
+		const newRecipeOrder = oldName
+			? recipes.map((r) => (r === oldName ? recipeName : r))
+			: [...recipes, recipeName];
+
 		const updatedItems = [...possibleItems];
+
+		// When editing, untag items that were dropped from the recipe
+		if (oldName) {
+			for (let i = 0; i < updatedItems.length; i++) {
+				const item = updatedItems[i];
+				if (item.recipes?.includes(oldName) && !newItemNames.includes(item.name)) {
+					updatedItems[i] = {
+						...item,
+						recipes: item.recipes.filter((r) => r !== oldName),
+						lastUpdated: now,
+					};
+				}
+			}
+		}
+
 		for (const recipeItem of recipeItems) {
 			const existingIndex = updatedItems.findIndex((i) => i.name === recipeItem.name);
 			if (existingIndex >= 0) {
-				// Item exists in options, add recipe to its recipes array
+				// Item exists in options, add/rename recipe tag on its recipes array
 				const existing = updatedItems[existingIndex];
-				const recipes = existing.recipes || [];
-				if (!recipes.includes(recipeName)) {
+				const existingRecipes = existing.recipes || [];
+				let newRecipes: string[];
+				if (oldName && existingRecipes.includes(oldName)) {
+					newRecipes = existingRecipes.map((r) => (r === oldName ? recipeName : r));
+				} else if (!existingRecipes.includes(recipeName)) {
 					// Preserve default status: if item was a default item, keep it as one
 					const wasDefault = isDefaultItem(existing);
-					const newRecipes =
-						wasDefault && !recipes.includes(DEFAULT_RECIPE)
-							? [...recipes, DEFAULT_RECIPE, recipeName]
-							: [...recipes, recipeName];
-					updatedItems[existingIndex] = {
-						...existing,
-						recipes: newRecipes,
-					};
+					newRecipes =
+						wasDefault && !existingRecipes.includes(DEFAULT_RECIPE)
+							? [...existingRecipes, DEFAULT_RECIPE, recipeName]
+							: [...existingRecipes, recipeName];
+				} else {
+					newRecipes = existingRecipes;
 				}
+				updatedItems[existingIndex] = {
+					...existing,
+					recipes: newRecipes,
+					lastUpdated: now,
+				};
 			} else {
 				// Item might be from currentList or new - add to options with recipe
 				updatedItems.push({
 					...recipeItem,
 					recipes: [recipeName],
+					lastUpdated: now,
 				});
 			}
 		}
 
 		setPossibleItems(updatedItems);
 		setRecipes(newRecipeOrder);
+		// Renaming drops the old name from recipeOrder, same as a delete - tombstone it so a
+		// server merge with a stale copy of the old name doesn't resurrect it.
+		if (oldName && oldName !== recipeName) {
+			setDeletedRecipes([...deletedRecipes, { name: oldName, deletedAt: now }]);
+		}
 	};
 
 	const deleteRecipe = async (recipeName: string) => {
@@ -187,14 +226,16 @@ export default function App() {
 		const newRecipeOrder = recipes.filter((r) => r !== recipeName);
 
 		// Remove recipe from all items in possibleItems
+		const now = getNow();
 		const updatedItems = possibleItems.map((item) => {
 			if (!item.recipes?.includes(recipeName)) return item;
 			const newRecipes = item.recipes.filter((r) => r !== recipeName);
-			return { ...item, recipes: newRecipes };
+			return { ...item, recipes: newRecipes, lastUpdated: now };
 		});
 
 		setPossibleItems(updatedItems);
 		setRecipes(newRecipeOrder);
+		setDeletedRecipes([...deletedRecipes, { name: recipeName, deletedAt: now }]);
 	};
 
 	const reorderRecipe = (recipeName: string, newIndex: number) => {
@@ -365,6 +406,10 @@ export default function App() {
 				recipes={recipes}
 				storeSections={effectiveSortOrder}
 				onAddRecipeClick={() => setShowAddRecipeModal(true)}
+				onEditRecipeClick={(recipeName) => {
+					setEditingRecipeName(recipeName);
+					setShowAddRecipeModal(true);
+				}}
 				onDeleteRecipe={deleteRecipe}
 				isSorting={isSorting}
 				onReorderRecipe={reorderRecipe}
@@ -380,8 +425,17 @@ export default function App() {
 				<AddRecipeModal
 					possibleItems={allAvailableItems}
 					storeSections={effectiveSortOrder}
-					onSave={addRecipe}
-					onClose={() => setShowAddRecipeModal(false)}
+					onSave={saveRecipe}
+					onClose={() => {
+						setShowAddRecipeModal(false);
+						setEditingRecipeName(null);
+					}}
+					editingRecipeName={editingRecipeName ?? undefined}
+					initialItems={
+						editingRecipeName
+							? possibleItems.filter((i) => i.recipes?.includes(editingRecipeName))
+							: undefined
+					}
 				/>
 			)}
 			{showHelpModal && <HelpModal onClose={() => setShowHelpModal(false)} />}

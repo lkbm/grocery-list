@@ -1,11 +1,11 @@
-import { Hono } from "hono";
-import { secureHeaders } from "hono/secure-headers";
-import { serveStatic } from "hono/cloudflare-workers";
+import { Hono } from 'hono';
+import { secureHeaders } from 'hono/secure-headers';
+import { serveStatic } from 'hono/cloudflare-workers';
 import { blankList } from './App';
-import { Item, ListData } from './types';
+import { Item, ListData, Tombstone } from './types';
 
 const MAX_LIST_BYTES = 512 * 1024; // 512KiB
-const VALID_STATUSES = new Set(["need", "carted"]);
+const VALID_STATUSES = new Set(['need', 'carted']);
 
 // Clamp an ISO timestamp to the current time if it's in the future or invalid.
 function clampTimestamp(iso: string): string {
@@ -23,15 +23,21 @@ function sanitizeItem(raw: unknown): Item | null {
 	const item: Item = { name: obj.name.trim() };
 	if (obj.status !== undefined && obj.status !== null) {
 		if (!VALID_STATUSES.has(obj.status as string)) return null;
-		item.status = obj.status as "need" | "carted";
+		item.status = obj.status as 'need' | 'carted';
 	}
 	if (typeof obj.category === 'string') item.category = obj.category;
-	if (Array.isArray(obj.recipes) && obj.recipes.every(r => typeof r === 'string'))
+	if (
+		Array.isArray(obj.recipes) &&
+		obj.recipes.every((r) => typeof r === 'string')
+	)
 		item.recipes = obj.recipes;
-	if (typeof obj.dateAdded === 'string') item.dateAdded = clampTimestamp(obj.dateAdded);
-	if (typeof obj.lastUpdated === 'string') item.lastUpdated = clampTimestamp(obj.lastUpdated);
+	if (typeof obj.dateAdded === 'string')
+		item.dateAdded = clampTimestamp(obj.dateAdded);
+	if (typeof obj.lastUpdated === 'string')
+		item.lastUpdated = clampTimestamp(obj.lastUpdated);
 	if (typeof obj.deleted === 'boolean') item.deleted = obj.deleted;
-	if (typeof obj.deletedAt === 'string') item.deletedAt = clampTimestamp(obj.deletedAt);
+	if (typeof obj.deletedAt === 'string')
+		item.deletedAt = clampTimestamp(obj.deletedAt);
 	if (typeof obj.sortIndex === 'number') item.sortIndex = obj.sortIndex;
 	return item;
 }
@@ -39,6 +45,19 @@ function sanitizeItem(raw: unknown): Item | null {
 function sanitizeStringArray(raw: unknown): string[] {
 	if (!Array.isArray(raw)) return [];
 	return raw.filter((s): s is string => typeof s === 'string');
+}
+
+function sanitizeTombstones(raw: unknown): Tombstone[] {
+	if (!Array.isArray(raw)) return [];
+	const result: Tombstone[] = [];
+	for (const entry of raw) {
+		if (!entry || typeof entry !== 'object') continue;
+		const obj = entry as Record<string, unknown>;
+		if (typeof obj.name !== 'string' || !obj.name.trim()) continue;
+		if (typeof obj.deletedAt !== 'string') continue;
+		result.push({ name: obj.name.trim(), deletedAt: clampTimestamp(obj.deletedAt) });
+	}
+	return result;
 }
 
 // Parse and validate incoming list data, stripping unknown fields and clamping
@@ -51,6 +70,8 @@ function sanitizeListData(raw: unknown): ListData | null {
 		items: obj.items.map(sanitizeItem).filter((i): i is Item => i !== null),
 		recipeOrder: sanitizeStringArray(obj.recipeOrder),
 		storeSections: sanitizeStringArray(obj.storeSections),
+		deletedRecipes: sanitizeTombstones(obj.deletedRecipes),
+		deletedSections: sanitizeTombstones(obj.deletedSections),
 	};
 }
 
@@ -62,15 +83,17 @@ function isValidKey(key: string): boolean {
 
 export interface Env {
 	GROCERYLIST: DurableObjectNamespace;
-	GROCERY_RATE_LIMITER: { limit(opts: { key: string }): Promise<{ success: boolean }> };
+	GROCERY_RATE_LIMITER: {
+		limit(opts: { key: string }): Promise<{ success: boolean }>;
+	};
 }
 
 const getNewestOfEachItem = (itemList: Item[]): Item[] => {
 	const latestItems: { [key: string]: Item } = {};
-	itemList.forEach(item => {
+	itemList.forEach((item) => {
 		const existing = latestItems[item.name];
-		const itemLastUpdated = item.lastUpdated || "1970-01-01T00:00:00Z";
-		const existingLastUpdated = existing?.lastUpdated || "1970-01-01T00:00:00Z";
+		const itemLastUpdated = item.lastUpdated || '1970-01-01T00:00:00Z';
+		const existingLastUpdated = existing?.lastUpdated || '1970-01-01T00:00:00Z';
 		if (!existing || itemLastUpdated > existingLastUpdated) {
 			latestItems[item.name] = item;
 		}
@@ -85,6 +108,38 @@ const mergeOrdered = (existing: string[], incoming: string[]): string[] => {
 		if (!result.includes(item)) result.push(item);
 	}
 	return result;
+};
+
+// Newest-wins merge of tombstones by name, mirroring getNewestOfEachItem
+const mergeTombstones = (existing: Tombstone[] = [], incoming: Tombstone[] = []): Tombstone[] => {
+	const latest: { [name: string]: Tombstone } = {};
+	for (const tombstone of [...existing, ...incoming]) {
+		const current = latest[tombstone.name];
+		if (!current || tombstone.deletedAt > current.deletedAt) latest[tombstone.name] = tombstone;
+	}
+	return Object.values(latest);
+};
+
+// A union merge (mergeOrdered) can't tell a removal from "the other side just hasn't seen it yet" -
+// it can only ever add names, never drop them. Tombstones supply the missing removal signal: a
+// unioned name is dropped unless some non-deleted item's tag/category for it was touched after
+// the tombstone was created, which means the name was intentionally reused since the deletion.
+const mergeOrderedWithTombstones = (
+	existingNames: string[],
+	incomingNames: string[],
+	tombstones: Tombstone[],
+	items: Item[],
+	namesForItem: (item: Item) => string[],
+): string[] => {
+	const union = mergeOrdered(existingNames, incomingNames);
+	const tombstoneByName = new Map(tombstones.map((t) => [t.name, t.deletedAt]));
+	return union.filter((name) => {
+		const deletedAt = tombstoneByName.get(name);
+		if (!deletedAt) return true;
+		return items.some(
+			(item) => !item.deleted && namesForItem(item).includes(name) && (item.lastUpdated || '') > deletedAt,
+		);
+	});
 };
 
 export class GroceryList {
@@ -120,8 +175,7 @@ export class GroceryList {
 			if (new TextEncoder().encode(body).length > MAX_LIST_BYTES)
 				return new Response('Payload too large', { status: 413 });
 			const sanitized = sanitizeListData(JSON.parse(body));
-			if (!sanitized)
-				return new Response('Invalid list data', { status: 400 });
+			if (!sanitized) return new Response('Invalid list data', { status: 400 });
 			const stored = JSON.stringify(sanitized);
 			await this.state.storage.put('data', stored);
 			// Broadcast to any connected WS clients (e.g. when options list is updated via REST)
@@ -148,10 +202,28 @@ export class GroceryList {
 		const existing = await this.state.storage.get<string>('data');
 		const existingData: ListData = existing ? JSON.parse(existing) : blankList;
 
+		const mergedItems = getNewestOfEachItem([...existingData.items, ...incoming.items]);
+		const mergedDeletedRecipes = mergeTombstones(existingData.deletedRecipes, incoming.deletedRecipes);
+		const mergedDeletedSections = mergeTombstones(existingData.deletedSections, incoming.deletedSections);
+
 		const merged: ListData = {
-			items: getNewestOfEachItem([...existingData.items, ...incoming.items]),
-			recipeOrder: mergeOrdered(existingData.recipeOrder, incoming.recipeOrder),
-			storeSections: mergeOrdered(existingData.storeSections, incoming.storeSections),
+			items: mergedItems,
+			recipeOrder: mergeOrderedWithTombstones(
+				existingData.recipeOrder,
+				incoming.recipeOrder,
+				mergedDeletedRecipes,
+				mergedItems,
+				(item) => item.recipes || [],
+			),
+			storeSections: mergeOrderedWithTombstones(
+				existingData.storeSections,
+				incoming.storeSections,
+				mergedDeletedSections,
+				mergedItems,
+				(item) => (item.category ? [item.category] : []),
+			),
+			deletedRecipes: mergedDeletedRecipes,
+			deletedSections: mergedDeletedSections,
 		};
 
 		const mergedStr = JSON.stringify(merged);
@@ -179,66 +251,70 @@ export class GroceryList {
 const app = new Hono<{ Bindings: Env }>();
 
 const secureHeadersMiddleware = secureHeaders({
-	xFrameOptions: "DENY",
-	xContentTypeOptions: "nosniff",
+	xFrameOptions: 'DENY',
+	xContentTypeOptions: 'nosniff',
 	contentSecurityPolicy: {
 		defaultSrc: ["'self'"],
 		scriptSrc: ["'self'"],
 		styleSrc: ["'self'", "'unsafe-inline'"],
 		connectSrc: ["'self'"],
-		imgSrc: ["'self'", "data:"],
+		imgSrc: ["'self'", 'data:'],
 		objectSrc: ["'none'"],
 		frameAncestors: ["'none'"],
 	},
 });
 
-app.use("*", async (c, next) => {
-	const ip = c.req.header("CF-Connecting-IP") ?? "unknown";
+app.use('*', async (c, next) => {
+	const ip = c.req.header('CF-Connecting-IP') ?? 'unknown';
 	const { success } = await c.env.GROCERY_RATE_LIMITER.limit({ key: ip });
 
-	if (!success) return c.text("Too many requests", 429);
+	if (!success) return c.text('Too many requests', 429);
 
 	return next();
 });
 
 // Security headers only apply to the HTML shell — not API responses or WS upgrades.
-app.use("*", async (c, next) => {
-	if (c.req.path.startsWith("/api/") || c.req.header("Upgrade") === "websocket") return next();
+app.use('*', async (c, next) => {
+	if (c.req.path.startsWith('/api/') || c.req.header('Upgrade') === 'websocket')
+		return next();
 	return secureHeadersMiddleware(c, next);
 });
 
-app.get("/api/ws/:key", async (c) => {
-	const key = c.req.param("key");
-	if (!isValidKey(key)) return c.text("Invalid list name", 400);
+app.get('/api/ws/:key', async (c) => {
+	const key = c.req.param('key');
+	if (!isValidKey(key)) return c.text('Invalid list name', 400);
 	const id = c.env.GROCERYLIST.idFromName(key);
 	const stub = c.env.GROCERYLIST.get(id);
 	return stub.fetch(c.req.raw);
 });
 
-app.get("/api/state/:key", async (c) => {
-	const key = c.req.param("key");
-	if (!isValidKey(key)) return c.text("Invalid list name", 400);
+app.get('/api/state/:key', async (c) => {
+	const key = c.req.param('key');
+	if (!isValidKey(key)) return c.text('Invalid list name', 400);
 	const id = c.env.GROCERYLIST.idFromName(key);
 	const stub = c.env.GROCERYLIST.get(id);
 	return stub.fetch(c.req.raw);
 });
 
-app.put("/api/state/:key", async (c) => {
-	const key = c.req.param("key");
-	if (!isValidKey(key)) return c.text("Invalid list name", 400);
+app.put('/api/state/:key', async (c) => {
+	const key = c.req.param('key');
+	if (!isValidKey(key)) return c.text('Invalid list name', 400);
 	const id = c.env.GROCERYLIST.idFromName(key);
 	const stub = c.env.GROCERYLIST.get(id);
 	return stub.fetch(c.req.raw);
 });
 
 // Serve static assets
-app.get("*", serveStatic({
-	root: "./dist",
-	rewriteRequestPath: (path) => {
-		if (path === "/") return "/index.html";
-		return path;
-	},
-	manifest: {}
-}));
+app.get(
+	'*',
+	serveStatic({
+		root: './dist',
+		rewriteRequestPath: (path) => {
+			if (path === '/') return '/index.html';
+			return path;
+		},
+		manifest: {},
+	}),
+);
 
 export default app;

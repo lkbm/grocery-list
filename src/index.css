@@ -306,8 +306,7 @@ h3 {
   opacity: 0.5;
 }
 
-.custom-item-cancel,
-.custom-item-submit {
+.custom-item-cancel {
   width: 2.5em;
   min-height: auto;
   border: none;
@@ -332,19 +331,6 @@ h3 {
   color: var(--color-danger);
 }
 
-.custom-item-submit {
-  border-left: 1px solid var(--border-light);
-}
-
-.custom-item-submit:hover:not(:disabled) {
-  background: var(--bg-available);
-  color: var(--color-success);
-}
-
-.custom-item-submit:disabled {
-  opacity: 0.3;
-  cursor: not-allowed;
-}
 
 /* Sort mode styles */
 .active-mode {

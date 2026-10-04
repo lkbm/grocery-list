@@ -102,11 +102,15 @@ const getNewestOfEachItem = (itemList: Item[]): Item[] => {
 };
 
 // Union merge preserving existing order, appending new entries from incoming
+// Incoming order wins, so reorders stick. Names only the server has (e.g. just added by another
+// client) are kept, placed right after the name they followed in the existing order.
 const mergeOrdered = (existing: string[], incoming: string[]): string[] => {
-	const result = [...existing];
-	for (const item of incoming) {
-		if (!result.includes(item)) result.push(item);
-	}
+	const result = [...incoming];
+	existing.forEach((name, i) => {
+		if (result.includes(name)) return;
+		const predecessorIndex = i > 0 ? result.indexOf(existing[i - 1]) : -1;
+		result.splice(predecessorIndex + 1, 0, name);
+	});
 	return result;
 };
 

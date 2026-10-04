@@ -1,5 +1,6 @@
 import { useState } from 'preact/hooks';
 import { Item } from './types';
+import { Tile } from './Tile';
 
 interface AvailableItemProps {
 	onChange: (itemName: string, category?: string) => void;
@@ -19,9 +20,9 @@ export const AvailableItem = ({ item, onChange, className = "", showCategoryLabe
 	};
 
 	return (
-		<button onClick={handleClick} className={`available-item ${className} ${isRemoving ? 'removing' : ''}`}>
+		<Tile onClick={handleClick} className={`available-item ${className} ${isRemoving ? 'removing' : ''}`}>
 			{showCategoryLabel && <span className={`sideways-category-header`}>{item.category}</span>}
 			{item.name}
-		</button>
+		</Tile>
 	);
 };

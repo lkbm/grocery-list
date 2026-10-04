@@ -1,6 +1,7 @@
 import { useState, useEffect, useMemo, useRef } from 'preact/hooks';
 import { Fragment } from 'preact';
 import { Item } from './types';
+import { Tile } from './Tile';
 import { CustomItem } from './AddItems';
 import { AvailableItem } from './AvailableItem';
 
@@ -98,13 +99,13 @@ export const AddRecipeModal = ({ possibleItems, storeSections, onSave, onClose, 
 										<Fragment key={category}>
 											<h4 className="recipe-category">{category}</h4>
 											{items.map(item => (
-												<button
+												<Tile
 													key={item.name}
 													className="available-item removable-item"
 													onClick={() => removeItemFromRecipe(item.name)}
 												>
 													{item.name}
-												</button>
+												</Tile>
 											))}
 										</Fragment>
 									);

@@ -1,6 +1,7 @@
 import { useState, useEffect, useMemo, useRef } from 'preact/hooks';
 import { memo } from 'preact/compat';
 import { Item } from './types';
+import { Tile } from './Tile';
 import { isDefaultItem } from './helpers';
 import { AvailableItem } from './AvailableItem';
 
@@ -189,7 +190,7 @@ export const AddItems = memo(
 
 							return isSorting ? (
 								<div key={category} className="section-row">
-									<button
+									<Tile
 										className={`available-item custom draggable-section ${isDragging ? 'dragging' : ''} ${isDragOver ? 'drag-over' : ''}`}
 										draggable
 										onDragStart={handleSectionDragStart(category, index)}
@@ -200,7 +201,7 @@ export const AddItems = memo(
 									>
 										<span className="drag-handle">⋮⋮</span>
 										{category}
-									</button>
+									</Tile>
 									<button
 										className="section-delete"
 										onClick={() => setDeletingSectionName(category)}
@@ -236,12 +237,12 @@ export const AddItems = memo(
 								</button>
 							</form>
 						) : (
-							<button
+							<Tile
 								className="add-section-button"
 								onClick={() => setIsAddingSection(true)}
 							>
 								+ Add Section
-							</button>
+							</Tile>
 						)}
 					</div>
 				)}
@@ -578,9 +579,9 @@ export const CustomItem = ({ onChange, category }: CustomItemProps) => {
 	}
 
 	return (
-		<button onClick={() => setIsEditing(true)} className="available-item custom">
+		<Tile onClick={() => setIsEditing(true)} className="available-item custom">
 			<span className="custom-item-plus">+</span>
 			{category}
-		</button>
+		</Tile>
 	);
 };

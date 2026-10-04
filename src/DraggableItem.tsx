@@ -1,5 +1,6 @@
 import { useState } from 'preact/hooks';
 import { Item } from './types';
+import { Tile } from './Tile';
 
 interface DraggableItemProps {
 	item: Item;
@@ -53,7 +54,7 @@ export const DraggableItem = ({ item, index, category, onReorder }: DraggableIte
 	};
 
 	return (
-		<button
+		<Tile
 			draggable
 			onDragStart={handleDragStart}
 			onDragEnd={handleDragEnd}
@@ -64,6 +65,6 @@ export const DraggableItem = ({ item, index, category, onReorder }: DraggableIte
 		>
 			<span className="drag-handle">⋮⋮</span>
 			{item.name}
-		</button>
+		</Tile>
 	);
 };

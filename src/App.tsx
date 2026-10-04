@@ -1,6 +1,7 @@
 import { useState, useCallback, useEffect, useMemo, useRef } from 'preact/hooks';
 import { Fragment } from 'preact';
 import { Item } from './types';
+import { Tile } from './Tile';
 import { AddRecipeModal } from './RecipeModal';
 import { HelpModal } from './HelpModal';
 import { AvailableItem } from './AvailableItem';
@@ -330,15 +331,15 @@ export default function App() {
 				</div>
 			)}
 			<SkippedItemsIndicator items={skippedItems} onScrollToTop={scrollToTop} />
-			<button onClick={pruneList}>Prune Purchases</button>
-			<button onClick={() => setIsRemoving(!isRemoving)}>{isRemoving ? 'Done Removing' : 'Remove Items'}</button>
-			<button onClick={() => setIsSorting(!isSorting)} className={isSorting ? 'active-mode' : ''}>
+			<Tile onClick={pruneList}>Prune Purchases</Tile>
+			<Tile onClick={() => setIsRemoving(!isRemoving)}>{isRemoving ? 'Done Removing' : 'Remove Items'}</Tile>
+			<Tile onClick={() => setIsSorting(!isSorting)} className={isSorting ? 'active-mode' : ''}>
 				{isSorting ? 'Done Sorting' : 'Sort Items'}
-			</button>
+			</Tile>
 			{wsConnected === false && (
-				<button onClick={reconnectAll} className="error">
+				<Tile onClick={reconnectAll} className="error">
 					Disconnected
-				</button>
+				</Tile>
 			)}
 
 			<hr />
@@ -473,11 +474,9 @@ interface ListItemProps {
 }
 
 const ListItem = ({ item, currentValue, toggleCurrentItems, registerRef }: ListItemProps) => {
-	const itemId = `item-${encodeURIComponent(item.name)}`;
 	return (
-		<div ref={(el) => registerRef?.(item.name, el)}>
-			<input type="checkbox" checked={currentValue} id={itemId} onChange={() => toggleCurrentItems(item.name)} />
-			<label htmlFor={itemId}>{item.name}</label>
-		</div>
+		<Tile ref={(el: HTMLButtonElement | null) => registerRef?.(item.name, el)} pressed={currentValue} onClick={() => toggleCurrentItems(item.name)}>
+			{item.name}
+		</Tile>
 	);
 };

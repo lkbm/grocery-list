@@ -27,3 +27,4 @@ dist-ssr
 
 bundle-visualization.html
 untracked_files/*
+.playwright-mcp/

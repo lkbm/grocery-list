@@ -179,46 +179,35 @@
   grid-column: 1 / -1;
 }
 
-button,
-label {
+button {
   border: 1px solid var(--border);
   border-radius: 8px;
   font-size: 1em;
   cursor: pointer;
   transition: border-color 0.25s;
   box-sizing: border-box;
-  min-height: max(5em, 48px);
-  /* Ensure 48px minimum for touch */
-  align-items: center;
-  display: flex;
-  justify-content: center;
   touch-action: manipulation;
   /* Eliminate 300ms click delay on mobile */
   background-color: var(--bg-button);
   color: var(--text);
 }
 
-button:hover,
-label:hover {
+button:hover {
   border-color: var(--accent);
 }
 
 button:focus,
-button:focus-visible,
-label:focus,
-label:focus-visible {
+button:focus-visible {
   outline: 4px auto -webkit-focus-ring-color;
 }
 
-
-/* The checkbox is hidden, but the label is styled to look like a checkbox */
-input[type="checkbox"] {
-  display: none;
-}
-
-/* When the checkbox is checked, the label is highlighted */
-input[type="checkbox"]:checked + label {
-  background: var(--bg-carted);
+/* Grid-cell item buttons (see Tile.tsx) */
+.tile {
+  min-height: max(5em, 48px);
+  /* Ensure 48px minimum for touch */
+  align-items: center;
+  display: flex;
+  justify-content: center;
 }
 
 hr {
@@ -241,7 +230,8 @@ hr {
   border: 8px solid var(--bg-removable);
 }
 
-.carted {
+.carted,
+.tile[aria-pressed="true"] {
   background: var(--bg-carted);
 }
 
@@ -308,7 +298,6 @@ h3 {
 
 .custom-item-cancel {
   width: 2.5em;
-  min-height: auto;
   border: none;
   background: var(--bg-surface);
   color: var(--text-secondary);
@@ -320,9 +309,6 @@ h3 {
   align-items: center;
   justify-content: center;
   transition: background-color 0.15s ease, color 0.15s ease;
-}
-
-.custom-item-cancel {
   border-right: 1px solid var(--border-light);
 }
 
@@ -413,8 +399,6 @@ input[type=text] {
   font-weight: 500;
   text-transform: capitalize;
   cursor: pointer;
-  min-height: auto;
-  width: auto;
 }
 
 .category-pill:hover {
@@ -446,7 +430,6 @@ input[type=text] {
   border-radius: 4px;
   cursor: pointer;
   text-align: left;
-  min-height: auto;
   margin: 8px 0;
   font-size: 1.1em;
   font-weight: 500;
@@ -467,8 +450,6 @@ input[type=text] {
   font-size: 0.85em;
   font-weight: 500;
   cursor: pointer;
-  min-height: auto;
-  width: auto;
 }
 
 .recipe-header:hover {
@@ -508,8 +489,6 @@ input[type=text] {
   overflow: hidden;
   box-shadow: 0 2px 8px var(--shadow-skipped);
   cursor: pointer;
-  width: auto;
-  min-height: auto;
 }
 
 .skipped-indicator:hover {
@@ -675,10 +654,6 @@ input[type=text] {
   display: block;
   margin-bottom: 0.5em;
   font-weight: bold;
-  border: none;
-  width: auto;
-  min-height: auto;
-  cursor: default;
 }
 
 .recipe-name-input input {
@@ -735,8 +710,6 @@ input[type=text] {
 }
 
 .modal-footer button {
-  width: auto;
-  min-height: auto;
   padding: 0.5em 1em;
 }
 
@@ -831,7 +804,6 @@ input[type=text] {
 }
 
 .add-section-form button {
-  width: auto;
   height: 3em;
   padding: 0 1em;
 }
@@ -855,12 +827,10 @@ input[type=text] {
   border: 1px solid var(--border-warning-light);
   border-radius: 4px;
   width: 100%;
-  min-height: auto;
   cursor: pointer;
 }
 
 .delete-items-checkbox input[type="checkbox"] {
-  display: inline-block;
   width: 1.2em;
   height: 1.2em;
 }
@@ -899,7 +869,6 @@ input[type=text] {
   flex-shrink: 0;
   width: 48px;
   height: 48px;
-  min-height: 48px;
   padding: 0;
   font-size: 1.2em;
   line-height: 1;
@@ -928,11 +897,13 @@ input[type=text] {
     gap: 6px;
   }
 
-  button,
-  label {
-    min-height: 3em;
+  button {
     font-size: 0.85em;
     padding: 4px;
+  }
+
+  .tile {
+    min-height: 3em;
   }
 
   .skipped-indicator {
@@ -1008,7 +979,6 @@ input[type=text] {
 }
 
 .backup-banner button {
-  width: auto;
   min-height: 2.5em;
   padding: 0.5em 1em;
 }

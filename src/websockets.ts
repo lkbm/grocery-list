@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'preact/hooks';
-import { Item, ListData, Tombstone } from './types';
+import { ListData } from './types';
 
 // --- Module-level helpers ---
 
@@ -119,127 +119,97 @@ const useWebSocket = (url: string, onMessage: (data: ListData) => void) => {
 	return { wsRef, skipNextSend, wsConnected, reconnect };
 };
 
+// --- Synced list state ---
+
+const EMPTY_LIST: ListData = { items: [], recipeOrder: [], storeSections: [], deletedRecipes: [], deletedSections: [] };
+
+const normalizeListData = (data: ListData): ListData => ({
+	...data,
+	deletedRecipes: data.deletedRecipes ?? [],
+	deletedSections: data.deletedSections ?? [],
+});
+
+// One list's full data, synced over a WebSocket: server messages replace it, local changes are sent.
+const useSyncedList = (listName: string, onServerData?: (data: ListData) => void) => {
+	const [data, setData] = useState<ListData>(EMPTY_LIST);
+	const [isLoading, setIsLoading] = useState<boolean>(true);
+
+	const { wsRef, skipNextSend, wsConnected, reconnect } = useWebSocket(buildWsUrl(listName), (incoming) => {
+		onServerData?.(incoming);
+		setData(normalizeListData(incoming));
+		setIsLoading(false);
+	});
+
+	useEffect(() => {
+		if (skipNextSend.current) { skipNextSend.current = false; return; }
+		const ws = wsRef.current;
+		if (!ws || ws.readyState !== WebSocket.OPEN || isLoading) return;
+		ws.send(JSON.stringify(data));
+	}, [data, isLoading]); // eslint-disable-line react-hooks/exhaustive-deps
+
+	// Setter for a single field. Uses a functional update so several setters called in one handler
+	// (e.g. items + recipeOrder + deletedRecipes) all apply, instead of each overwriting the last.
+	const setField = <K extends keyof ListData>(key: K) => (value: ListData[K]) =>
+		setData((prev) => ({ ...prev, [key]: value }));
+
+	return { data, setData, setField, isLoading, wsConnected, reconnect };
+};
+
 // --- Public hooks ---
 
 export const useOptionsSocket = (listName: string) => {
 	const optionsListName = listName.endsWith('-options') ? listName : `${listName}-options`;
 	const [backupAvailable, setBackupAvailable] = useState<{ data: ListData; timestamp: string } | null>(null);
-	const [recipes, setRecipes] = useState<string[]>([]);
-	const [storeSections, setStoreSections] = useState<string[]>([]);
-	const [deletedRecipes, setDeletedRecipes] = useState<Tombstone[]>([]);
-	const [deletedSections, setDeletedSections] = useState<Tombstone[]>([]);
-	const [isLoading, setIsLoading] = useState<boolean>(true);
-	const [possibleItems, setPossibleItems] = useState<Item[]>([]);
 	const backupBannerShown = useRef(false);
 
-	const { wsRef, skipNextSend, reconnect: reconnectOptionsSocket } = useWebSocket(
-		buildWsUrl(optionsListName),
-		(data) => {
-			if (data.items.length > 0) {
-				saveOptionsBackup(optionsListName, data);
-			} else if (!backupBannerShown.current) {
-				backupBannerShown.current = true;
-				const backup = getOptionsBackup(optionsListName);
-				if (backup && backup.data.items.length > 0) {
-					setBackupAvailable(backup);
-				}
+	const { data, setData, setField, isLoading, reconnect } = useSyncedList(optionsListName, (incoming) => {
+		if (incoming.items.length > 0) {
+			saveOptionsBackup(optionsListName, incoming);
+		} else if (!backupBannerShown.current) {
+			backupBannerShown.current = true;
+			const backup = getOptionsBackup(optionsListName);
+			if (backup && backup.data.items.length > 0) {
+				setBackupAvailable(backup);
 			}
-			setPossibleItems(data.items);
-			setRecipes(data.recipeOrder);
-			setStoreSections(data.storeSections);
-			setDeletedRecipes(data.deletedRecipes ?? []);
-			setDeletedSections(data.deletedSections ?? []);
-			setIsLoading(false);
-		},
-	);
+		}
+	});
 
 	const restoreFromBackup = () => {
 		if (!backupAvailable) return;
-		const { data } = backupAvailable;
-		setPossibleItems(data.items);
-		setRecipes(data.recipeOrder);
-		setStoreSections(data.storeSections);
-		setDeletedRecipes(data.deletedRecipes ?? []);
-		setDeletedSections(data.deletedSections ?? []);
+		setData(normalizeListData(backupAvailable.data));
 		setBackupAvailable(null);
 	};
 
 	const dismissBackup = () => setBackupAvailable(null);
 
-	useEffect(() => {
-		if (skipNextSend.current) { skipNextSend.current = false; return; }
-		const ws = wsRef.current;
-		if (!ws || ws.readyState !== WebSocket.OPEN || isLoading) return;
-		ws.send(JSON.stringify({
-			items: possibleItems,
-			recipeOrder: recipes,
-			storeSections,
-			deletedRecipes,
-			deletedSections,
-		}));
-	}, [possibleItems, recipes, storeSections, deletedRecipes, deletedSections]); // eslint-disable-line react-hooks/exhaustive-deps
-
 	return {
 		backupAvailable,
 		dismissBackup,
 		restoreFromBackup,
-		setPossibleItems,
-		setRecipes,
-		setStoreSections,
-		setDeletedRecipes,
-		setDeletedSections,
-		recipes,
-		storeSections,
-		deletedRecipes,
-		deletedSections,
+		setPossibleItems: setField('items'),
+		setRecipes: setField('recipeOrder'),
+		setStoreSections: setField('storeSections'),
+		setDeletedRecipes: setField('deletedRecipes'),
+		setDeletedSections: setField('deletedSections'),
+		recipes: data.recipeOrder,
+		storeSections: data.storeSections,
+		deletedRecipes: data.deletedRecipes ?? [],
+		deletedSections: data.deletedSections ?? [],
 		isOptionsLoading: isLoading,
-		possibleItems,
-		reconnectOptionsSocket,
+		possibleItems: data.items,
+		reconnectOptionsSocket: reconnect,
 	};
 };
 
+// The main list's own recipeOrder/storeSections/tombstones are unused by the UI, but are kept in
+// `data` and echoed back on save so nothing is dropped.
 export const useListSocket = (listName: string) => {
-	const [isLoading, setIsLoading] = useState<boolean>(true);
-	const [currentList, setCurrentList] = useState<Item[]>([]);
-	// Preserved and echoed back on save — the main list owns its own recipe/section metadata
-	const [currentListMeta, setCurrentListMeta] = useState<{
-		recipeOrder: string[];
-		storeSections: string[];
-		deletedRecipes: Tombstone[];
-		deletedSections: Tombstone[];
-	}>({
-		recipeOrder: [],
-		storeSections: [],
-		deletedRecipes: [],
-		deletedSections: [],
-	});
-
-	const { wsRef, skipNextSend, wsConnected, reconnect: reconnectListSocket } = useWebSocket(
-		buildWsUrl(listName),
-		(data) => {
-			setCurrentList(data.items);
-			setCurrentListMeta({
-				recipeOrder: data.recipeOrder,
-				storeSections: data.storeSections,
-				deletedRecipes: data.deletedRecipes ?? [],
-				deletedSections: data.deletedSections ?? [],
-			});
-			setIsLoading(false);
-		},
-	);
-
-	useEffect(() => {
-		if (skipNextSend.current) { skipNextSend.current = false; return; }
-		const ws = wsRef.current;
-		if (!ws || ws.readyState !== WebSocket.OPEN || isLoading) return;
-		ws.send(JSON.stringify({
-			items: currentList,
-			recipeOrder: currentListMeta.recipeOrder,
-			storeSections: currentListMeta.storeSections,
-			deletedRecipes: currentListMeta.deletedRecipes,
-			deletedSections: currentListMeta.deletedSections,
-		}));
-	}, [currentList, currentListMeta, isLoading]); // eslint-disable-line react-hooks/exhaustive-deps
-
-	return { currentList, setCurrentList, wsConnected, reconnectListSocket, isListLoading: isLoading };
+	const { data, setField, isLoading, wsConnected, reconnect } = useSyncedList(listName);
+	return {
+		currentList: data.items,
+		setCurrentList: setField('items'),
+		wsConnected,
+		reconnectListSocket: reconnect,
+		isListLoading: isLoading,
+	};
 };

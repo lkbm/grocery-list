@@ -24,3 +24,14 @@ export const sortBySection = (items: Item[], storeSections: string[]): Item[] =>
 		return rankA === rankB ? 0 : rankA < rankB ? -1 : 1;
 	});
 };
+
+// Return a copy of arr with item moved to newIndex. Returns arr itself (same reference) when
+// there's nothing to do - item not found or already at newIndex - so callers can skip saving.
+export const moveTo = <T,>(arr: T[], item: T, newIndex: number): T[] => {
+	const oldIndex = arr.indexOf(item);
+	if (oldIndex === -1 || oldIndex === newIndex) return arr;
+	const result = [...arr];
+	result.splice(oldIndex, 1);
+	result.splice(newIndex, 0, item);
+	return result;
+};

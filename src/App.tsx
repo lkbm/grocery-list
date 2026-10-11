@@ -5,7 +5,7 @@ import { Tile } from './Tile';
 import { AddRecipeModal } from './RecipeModal';
 import { HelpModal } from './HelpModal';
 import { AvailableItem } from './AvailableItem';
-import { DEFAULT_RECIPE, isDefaultItem, getNow } from './helpers';
+import { DEFAULT_RECIPE, isDefaultItem, getNow, moveTo } from './helpers';
 import { AddItems } from './AddItems';
 import { DraggableItem } from './DraggableItem';
 import { useOptionsSocket, useListSocket } from './websockets';
@@ -239,14 +239,8 @@ export default function App() {
 	};
 
 	const reorderRecipe = (recipeName: string, newIndex: number) => {
-		const oldIndex = recipes.indexOf(recipeName);
-		if (oldIndex === -1 || oldIndex === newIndex) return;
-
-		const newOrder = [...recipes];
-		newOrder.splice(oldIndex, 1);
-		newOrder.splice(newIndex, 0, recipeName);
-
-		setRecipes(newOrder);
+		const newOrder = moveTo(recipes, recipeName, newIndex);
+		if (newOrder !== recipes) setRecipes(newOrder);
 	};
 
 	const pruneList = () => {

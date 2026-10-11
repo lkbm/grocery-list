@@ -1,6 +1,6 @@
 import { useMemo } from 'preact/hooks';
 import { Item, Tombstone } from './types';
-import { getNow } from './helpers';
+import { getNow, moveTo } from './helpers';
 
 interface UseSortOrderParams {
 	storeSections: string[];
@@ -54,12 +54,8 @@ export const useSortOrder = ({
 	}, [activeItems]);
 
 	const reorderSection = (sectionName: string, newIndex: number) => {
-		const oldIndex = effectiveSortOrder.indexOf(sectionName);
-		if (oldIndex === -1 || oldIndex === newIndex) return;
-		const newOrder = [...effectiveSortOrder];
-		newOrder.splice(oldIndex, 1);
-		newOrder.splice(newIndex, 0, sectionName);
-		setStoreSections(newOrder);
+		const newOrder = moveTo(effectiveSortOrder, sectionName, newIndex);
+		if (newOrder !== effectiveSortOrder) setStoreSections(newOrder);
 	};
 
 	const addSection = (sectionName: string) => {
@@ -89,13 +85,10 @@ export const useSortOrder = ({
 
 	const reorderItem = (itemName: string, category: string, newIndex: number) => {
 		const categoryItems = itemsByCategory[category];
-		if (!categoryItems) return;
-		const oldIndex = categoryItems.findIndex((i) => i.name === itemName);
-		if (oldIndex === -1 || oldIndex === newIndex) return;
-
-		const reordered = [...categoryItems];
-		const [moved] = reordered.splice(oldIndex, 1);
-		reordered.splice(newIndex, 0, moved);
+		const moved = categoryItems?.find((i) => i.name === itemName);
+		if (!moved) return;
+		const reordered = moveTo(categoryItems, moved, newIndex);
+		if (reordered === categoryItems) return;
 
 		const now = getNow();
 		const updates = new Map(reordered.map((item, idx) => [item.name, idx]));

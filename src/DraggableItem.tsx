@@ -1,6 +1,6 @@
-import { useState } from 'preact/hooks';
 import { Item } from './types';
 import { Tile } from './Tile';
+import { useDragReorder } from './useDragReorder';
 
 interface DraggableItemProps {
 	item: Item;
@@ -10,58 +10,15 @@ interface DraggableItemProps {
 }
 
 export const DraggableItem = ({ item, index, category, onReorder }: DraggableItemProps) => {
-	const [isDragging, setIsDragging] = useState(false);
-	const [isDragOver, setIsDragOver] = useState(false);
-
-	const handleDragStart = (e: DragEvent) => {
-		setIsDragging(true);
-		if (e.dataTransfer) {
-			e.dataTransfer.effectAllowed = 'move';
-			e.dataTransfer.setData('text/plain', JSON.stringify({ name: item.name, category, index }));
-		}
-	};
-
-	const handleDragEnd = () => {
-		setIsDragging(false);
-	};
-
-	const handleDragOver = (e: DragEvent) => {
-		e.preventDefault();
-		if (e.dataTransfer) {
-			e.dataTransfer.dropEffect = 'move';
-		}
-		setIsDragOver(true);
-	};
-
-	const handleDragLeave = () => {
-		setIsDragOver(false);
-	};
-
-	const handleDrop = (e: DragEvent) => {
-		e.preventDefault();
-		setIsDragOver(false);
-		if (!e.dataTransfer) return;
-
-		try {
-			const data = JSON.parse(e.dataTransfer.getData('text/plain'));
-			// Only allow drops within same category
-			if (data.category === category && data.name !== item.name) {
-				onReorder(data.name, category, index);
-			}
-		} catch {
-			// Invalid drag data
-		}
-	};
+	// Group by category so items can only be reordered within their own category
+	const { dragProps, dragClassName } = useDragReorder(`item:${category}`, (name, newIndex) =>
+		onReorder(name, category, newIndex),
+	);
 
 	return (
 		<Tile
-			draggable
-			onDragStart={handleDragStart}
-			onDragEnd={handleDragEnd}
-			onDragOver={handleDragOver}
-			onDragLeave={handleDragLeave}
-			onDrop={handleDrop}
-			className={`draggable-item ${isDragging ? 'dragging' : ''} ${isDragOver ? 'drag-over' : ''} ${item.status || ''}`}
+			{...dragProps(item.name, index)}
+			className={`draggable-item ${dragClassName(item.name)} ${item.status || ''}`}
 		>
 			<span className="drag-handle">⋮⋮</span>
 			{item.name}

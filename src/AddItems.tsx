@@ -4,6 +4,7 @@ import { Item } from './types';
 import { Tile } from './Tile';
 import { isDefaultItem, sortBySection } from './helpers';
 import { AvailableItem } from './AvailableItem';
+import { useDragReorder } from './useDragReorder';
 
 interface AddItemsProps {
 	onAddItem: (itemName: string, category?: string) => void;
@@ -46,11 +47,8 @@ export const AddItems = memo(
 		onHelpClick,
 	}: AddItemsProps) => {
 		const [expandedRecipe, setExpandedRecipe] = useState<string | null>(null);
-		// TODO: Combine the dragging state into a single object to simplify?
-		const [draggingRecipe, setDraggingRecipe] = useState<string | null>(null);
-		const [dragOverRecipe, setDragOverRecipe] = useState<string | null>(null);
-		const [draggingSection, setDraggingSection] = useState<string | null>(null);
-		const [dragOverSection, setDragOverSection] = useState<string | null>(null);
+		const sectionDrag = useDragReorder('section', onReorderSection);
+		const recipeDrag = useDragReorder('recipe', onReorderRecipe);
 		const [deletingSectionName, setDeletingSectionName] = useState<string | null>(
 			null,
 		);
@@ -100,49 +98,6 @@ export const AddItems = memo(
 				possibleItems.filter((item) => item.recipes?.includes(recipeName)),
 				storeSections,
 			);
-		};
-
-		const handleSectionDragStart =
-			(sectionName: string, index: number) => (e: DragEvent) => {
-				setDraggingSection(sectionName);
-				if (e.dataTransfer) {
-					e.dataTransfer.effectAllowed = 'move';
-					e.dataTransfer.setData(
-						'text/plain',
-						JSON.stringify({ type: 'section', name: sectionName, index }),
-					);
-				}
-			};
-
-		const handleSectionDragEnd = () => {
-			setDraggingSection(null);
-		};
-
-		const handleSectionDragOver = (sectionName: string) => (e: DragEvent) => {
-			e.preventDefault();
-			if (e.dataTransfer) {
-				e.dataTransfer.dropEffect = 'move';
-			}
-			setDragOverSection(sectionName);
-		};
-
-		const handleSectionDragLeave = () => {
-			setDragOverSection(null);
-		};
-
-		const handleSectionDrop = (targetIndex: number) => (e: DragEvent) => {
-			e.preventDefault();
-			setDragOverSection(null);
-			if (!e.dataTransfer) return;
-
-			try {
-				const data = JSON.parse(e.dataTransfer.getData('text/plain'));
-				if (data.type === 'section' && data.index !== targetIndex) {
-					onReorderSection(data.name, targetIndex);
-				}
-			} catch {
-				// Invalid drag data
-			}
 		};
 
 		const handleAddSectionSubmit = (e: Event) => {
@@ -205,13 +160,8 @@ export const AddItems = memo(
 							? storeSections.map((category, index) => (
 									<div key={category} className="section-row">
 										<Tile
-											className={`available-item custom draggable-section ${draggingSection === category ? 'dragging' : ''} ${dragOverSection === category ? 'drag-over' : ''}`}
-											draggable
-											onDragStart={handleSectionDragStart(category, index)}
-											onDragEnd={handleSectionDragEnd}
-											onDragOver={handleSectionDragOver(category)}
-											onDragLeave={handleSectionDragLeave}
-											onDrop={handleSectionDrop(index)}
+											{...sectionDrag.dragProps(category, index)}
+											className={`available-item custom draggable-section ${sectionDrag.dragClassName(category)}`}
 										>
 											<span className="drag-handle">⋮⋮</span>
 											{category}
@@ -292,65 +242,15 @@ export const AddItems = memo(
 				{recipes.map((recipeName, index) => {
 					const isExpanded = expandedRecipe === recipeName;
 					const recipeItems = getRecipeItems(recipeName);
-					const isDragging = draggingRecipe === recipeName;
-					const isDragOver = dragOverRecipe === recipeName;
-
-					const handleRecipeDragStart = (e: DragEvent) => {
-						setDraggingRecipe(recipeName);
-						if (e.dataTransfer) {
-							e.dataTransfer.effectAllowed = 'move';
-							e.dataTransfer.setData(
-								'text/plain',
-								JSON.stringify({ type: 'recipe', name: recipeName, index }),
-							);
-						}
-					};
-
-					const handleRecipeDragEnd = () => {
-						setDraggingRecipe(null);
-					};
-
-					const handleRecipeDragOver = (e: DragEvent) => {
-						e.preventDefault();
-						if (e.dataTransfer) {
-							e.dataTransfer.dropEffect = 'move';
-						}
-						setDragOverRecipe(recipeName);
-					};
-
-					const handleRecipeDragLeave = () => {
-						setDragOverRecipe(null);
-					};
-
-					const handleRecipeDrop = (e: DragEvent) => {
-						e.preventDefault();
-						setDragOverRecipe(null);
-						if (!e.dataTransfer) return;
-
-						try {
-							const data = JSON.parse(e.dataTransfer.getData('text/plain'));
-							if (data.type === 'recipe' && data.name !== recipeName) {
-								onReorderRecipe(data.name, index);
-							}
-						} catch {
-							// Invalid drag data
-						}
-					};
-
 					return (
 						<div key={recipeName} className="recipe-section">
 							<div className="recipe-header-row">
 								<button
-									className={`recipe-header ${isDragging ? 'dragging' : ''} ${isDragOver ? 'drag-over' : ''}`}
+									{...(isSorting ? recipeDrag.dragProps(recipeName, index) : {})}
+									className={`recipe-header ${recipeDrag.dragClassName(recipeName)}`}
 									onClick={() =>
 										!isSorting && setExpandedRecipe(isExpanded ? null : recipeName)
 									}
-									draggable={isSorting}
-									onDragStart={isSorting ? handleRecipeDragStart : undefined}
-									onDragEnd={isSorting ? handleRecipeDragEnd : undefined}
-									onDragOver={isSorting ? handleRecipeDragOver : undefined}
-									onDragLeave={isSorting ? handleRecipeDragLeave : undefined}
-									onDrop={isSorting ? handleRecipeDrop : undefined}
 								>
 									{isSorting && <span className="drag-handle">⋮⋮</span>}
 									<span className="recipe-toggle">{isExpanded ? '▾' : '▸'}</span>

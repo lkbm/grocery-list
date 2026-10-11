@@ -69,7 +69,6 @@ export default function App() {
 	};
 	const [collapsedSections, setCollapsedSections] = useState({
 		currentList: false,
-		sections: false,
 		standardItems: false,
 	});
 	const toggleSectionCollapse = (section: keyof typeof collapsedSections) => {

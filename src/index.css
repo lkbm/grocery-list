@@ -879,13 +879,6 @@ input[type=text] {
   cursor: pointer;
 }
 
-.search-no-results {
-  grid-column: 1 / -1;
-  text-align: center;
-  color: var(--text-muted);
-  padding: 1em;
-}
-
 /* Responsive breakpoints */
 @media (max-width: 480px) {
 

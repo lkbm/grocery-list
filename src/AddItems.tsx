@@ -19,8 +19,8 @@ interface AddItemsProps {
 	onReorderSection: (sectionName: string, newIndex: number) => void;
 	onAddSection: (sectionName: string) => void;
 	onDeleteSection: (sectionName: string, deleteItems: boolean) => void;
-	collapsedSections: { sections: boolean; standardItems: boolean };
-	onToggleSectionCollapse: (section: 'sections' | 'standardItems') => void;
+	collapsedSections: { standardItems: boolean };
+	onToggleSectionCollapse: (section: 'standardItems') => void;
 	listName: string;
 	onHelpClick: () => void;
 }
@@ -89,13 +89,12 @@ export const AddItems = memo(
 			);
 		}, [standardItems, searchFilter]);
 
-		// TODO(user): Decide when the "quick add what I typed" button should appear.
-		// It should return false once there's already an item that makes the button redundant
-		// (e.g. an exact case-insensitive match in filteredStandardItems) -- otherwise clicking
-		// it would create a duplicate item instead of reusing the existing one.
-		// trimmedFilter is the search box text with whitespace trimmed (never empty when this runs).
-		const shouldShowQuickAddButton = (trimmedFilter: string): boolean => {
-			const query = trimmedFilter.toLowerCase();
+		const trimmedFilter = searchFilter.trim();
+
+		// Offer "Add to [section]" unless the typed text already names a standard item
+		// (otherwise clicking it would create a duplicate instead of reusing the existing one).
+		const shouldShowAddToSection = (filter: string): boolean => {
+			const query = filter.toLowerCase();
 			return !standardItems.some((item) => item.name.toLowerCase() === query);
 		};
 
@@ -174,147 +173,127 @@ export const AddItems = memo(
 			<>
 				<button
 					className="collapsible-header"
-					onClick={() => onToggleSectionCollapse('sections')}
-				>
-					<span className="collapse-indicator">
-						{collapsedSections.sections ? '+' : '-'}
-					</span>
-					{isSorting ? 'Drag to Reorder ' : ''}Sections
-					<span className="section-count">({storeSections.length})</span>
-				</button>
-				{!collapsedSections.sections && (
-					<div className="item-grid">
-						{storeSections.map((category, index) => {
-							const isDragging = draggingSection === category;
-							const isDragOver = dragOverSection === category;
-
-							return isSorting ? (
-								<div key={category} className="section-row">
-									<Tile
-										className={`available-item custom draggable-section ${isDragging ? 'dragging' : ''} ${isDragOver ? 'drag-over' : ''}`}
-										draggable
-										onDragStart={handleSectionDragStart(category, index)}
-										onDragEnd={handleSectionDragEnd}
-										onDragOver={handleSectionDragOver(category)}
-										onDragLeave={handleSectionDragLeave}
-										onDrop={handleSectionDrop(index)}
-									>
-										<span className="drag-handle">⋮⋮</span>
-										{category}
-									</Tile>
-									<button
-										className="section-delete"
-										onClick={() => setDeletingSectionName(category)}
-										title="Delete section"
-									>
-										&times;
-									</button>
-								</div>
-							) : (
-								<CustomItem key={category} onChange={onAddItem} category={category} />
-							);
-						})}
-						{isAddingSection ? (
-							<form onSubmit={handleAddSectionSubmit} className="add-section-form">
-								<input
-									ref={newSectionInputRef}
-									type="text"
-									value={newSectionName}
-									onChange={(e) =>
-										setNewSectionName((e.target as HTMLInputElement).value)
-									}
-									placeholder="Section name"
-								/>
-								<button type="submit">Add</button>
-								<button
-									type="button"
-									onClick={() => {
-										setIsAddingSection(false);
-										setNewSectionName('');
-									}}
-								>
-									Cancel
-								</button>
-							</form>
-						) : (
-							<Tile
-								className="add-section-button"
-								onClick={() => setIsAddingSection(true)}
-							>
-								+ Add Section
-							</Tile>
-						)}
-					</div>
-				)}
-				<button
-					className="collapsible-header"
 					onClick={() => onToggleSectionCollapse('standardItems')}
 				>
 					<span className="collapse-indicator">
 						{collapsedSections.standardItems ? '+' : '-'}
 					</span>
-					Standard Items
-					<span className="section-count">({standardItems.length})</span>
+					{isSorting ? 'Drag to Reorder Sections' : 'Standard Items'}
+					<span className="section-count">
+						({isSorting ? storeSections.length : standardItems.length})
+					</span>
 				</button>
+				{!collapsedSections.standardItems && !isSorting && (
+					<div className="search-filter">
+						<input
+							ref={searchInputRef}
+							type="text"
+							value={searchFilter}
+							onInput={(e) => setSearchFilter((e.target as HTMLInputElement).value)}
+							placeholder="Filter items..."
+							className="search-filter-input"
+						/>
+						{searchFilter && (
+							<button
+								className="search-filter-clear"
+								onClick={() => {
+									setSearchFilter('');
+									searchInputRef.current?.focus();
+								}}
+							>
+								&times;
+							</button>
+						)}
+					</div>
+				)}
 				{!collapsedSections.standardItems && (
-					<>
-						<div className="search-filter">
-							<input
-								ref={searchInputRef}
-								type="text"
-								value={searchFilter}
-								onInput={(e) => setSearchFilter((e.target as HTMLInputElement).value)}
-								placeholder="Filter items..."
-								className="search-filter-input"
-							/>
-							{searchFilter && (
-								<button
-									className="search-filter-clear"
-									onClick={() => {
-										setSearchFilter('');
-										searchInputRef.current?.focus();
-									}}
-								>
-									&times;
-								</button>
-							)}
-						</div>
-						<div className="item-grid">
-							{searchFilter.trim() &&
-								shouldShowQuickAddButton(searchFilter.trim()) && (
+					<div className="item-grid">
+						{isSorting
+							? storeSections.map((category, index) => (
+									<div key={category} className="section-row">
+										<Tile
+											className={`available-item custom draggable-section ${draggingSection === category ? 'dragging' : ''} ${dragOverSection === category ? 'drag-over' : ''}`}
+											draggable
+											onDragStart={handleSectionDragStart(category, index)}
+											onDragEnd={handleSectionDragEnd}
+											onDragOver={handleSectionDragOver(category)}
+											onDragLeave={handleSectionDragLeave}
+											onDrop={handleSectionDrop(index)}
+										>
+											<span className="drag-handle">⋮⋮</span>
+											{category}
+										</Tile>
+										<button
+											className="section-delete"
+											onClick={() => setDeletingSectionName(category)}
+											title="Delete section"
+										>
+											&times;
+										</button>
+									</div>
+								))
+							: filteredStandardItems.map((item, index) => (
 									<AvailableItem
-										key="quick-add-typed-item"
-										showCategoryLabel
-										item={{ name: searchFilter.trim(), category: 'unknown' }}
-										onChange={(name) => {
-											onAddItem(name, undefined);
+										key={`available-${item.name}`}
+										showCategoryLabel={
+											index === 0 ||
+											item.category !== filteredStandardItems[index - 1].category
+										}
+										item={item}
+										onChange={(name, category) => {
+											onAddItem(name, category);
 											setSearchFilter('');
 										}}
 									/>
-								)}
-							{filteredStandardItems.map((item, index) => (
-								<AvailableItem
-									key={`available-${item.name}`}
-									showCategoryLabel={
-										index === 0 ||
-										item.category !== filteredStandardItems[index - 1].category
-									}
-									item={item}
-									onChange={(name, category) => {
-										onAddItem(name, category);
+								))}
+						{!isSorting &&
+							trimmedFilter &&
+							shouldShowAddToSection(trimmedFilter) &&
+							storeSections.map((category) => (
+								<Tile
+									key={`add-to-${category}`}
+									className="available-item custom"
+									onClick={() => {
+										onAddItem(trimmedFilter, category);
 										setSearchFilter('');
 									}}
-								/>
+								>
+									<span className="custom-item-plus">+</span>
+									Add to {category}
+								</Tile>
 							))}
-							{searchFilter &&
-								filteredStandardItems.length === 0 &&
-								!shouldShowQuickAddButton(searchFilter.trim()) && (
-									<div className="search-no-results">
-										No items match "{searchFilter}"
-									</div>
-								)}
-						</div>
-					</>
+						{(isSorting || !trimmedFilter) &&
+							(isAddingSection ? (
+								<form onSubmit={handleAddSectionSubmit} className="add-section-form">
+									<input
+										ref={newSectionInputRef}
+										type="text"
+										value={newSectionName}
+										onChange={(e) =>
+											setNewSectionName((e.target as HTMLInputElement).value)
+										}
+										placeholder="Section name"
+									/>
+									<button type="submit">Add</button>
+									<button
+										type="button"
+										onClick={() => {
+											setIsAddingSection(false);
+											setNewSectionName('');
+										}}
+									>
+										Cancel
+									</button>
+								</form>
+							) : (
+								<Tile
+									className="add-section-button"
+									onClick={() => setIsAddingSection(true)}
+								>
+									+ Add Section
+								</Tile>
+							))}
+					</div>
 				)}
 				<h3>{isSorting ? 'Drag to Reorder ' : ''}Recipes</h3>
 				{recipes.map((recipeName, index) => {

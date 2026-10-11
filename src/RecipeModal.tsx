@@ -9,7 +9,7 @@ import { sortBySection } from './helpers';
 interface AddRecipeModalProps {
 	possibleItems: Item[];
 	storeSections: string[];
-	onSave: (recipeName: string, items: Item[]) => Promise<void>;
+	onSave: (recipeName: string, items: Item[]) => void;
 	onClose: () => void;
 	editingRecipeName?: string;
 	initialItems?: Item[];
@@ -18,7 +18,6 @@ interface AddRecipeModalProps {
 export const AddRecipeModal = ({ possibleItems, storeSections, onSave, onClose, editingRecipeName, initialItems }: AddRecipeModalProps) => {
 	const [recipeName, setRecipeName] = useState(editingRecipeName ?? "");
 	const [recipeItems, setRecipeItems] = useState<Item[]>(initialItems ?? []);
-	const [isSaving, setIsSaving] = useState(false);
 	const nameInputRef = useRef<HTMLInputElement>(null);
 
 	useEffect(() => {
@@ -34,11 +33,9 @@ export const AddRecipeModal = ({ possibleItems, storeSections, onSave, onClose, 
 		setRecipeItems(recipeItems.filter(i => i.name !== itemName));
 	};
 
-	const handleSave = async () => {
+	const handleSave = () => {
 		if (!recipeName.trim() || recipeItems.length === 0) return;
-		setIsSaving(true);
-		await onSave(recipeName.trim(), recipeItems);
-		setIsSaving(false);
+		onSave(recipeName.trim(), recipeItems);
 		onClose();
 	};
 
@@ -128,13 +125,13 @@ export const AddRecipeModal = ({ possibleItems, storeSections, onSave, onClose, 
 				</div>
 
 				<div className="modal-footer">
-					<button onClick={onClose} disabled={isSaving}>Cancel</button>
+					<button onClick={onClose}>Cancel</button>
 					<button
 						onClick={handleSave}
-						disabled={!recipeName.trim() || recipeItems.length === 0 || isSaving}
+						disabled={!recipeName.trim() || recipeItems.length === 0}
 						className="save-button"
 					>
-						{isSaving ? "Saving..." : editingRecipeName ? "Save Changes" : "Save Recipe"}
+						{editingRecipeName ? "Save Changes" : "Save Recipe"}
 					</button>
 				</div>
 			</div>

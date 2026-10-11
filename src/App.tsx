@@ -152,7 +152,7 @@ export default function App() {
 		};
 	}, [currentList, possibleItems, recipes, storeSections]);
 
-	const saveRecipe = async (recipeName: string, recipeItems: Item[]) => {
+	const saveRecipe = (recipeName: string, recipeItems: Item[]) => {
 		const oldName = editingRecipeName;
 		const now = getNow();
 		const newItemNames = recipeItems.map((i) => i.name);
@@ -221,7 +221,7 @@ export default function App() {
 		}
 	};
 
-	const deleteRecipe = async (recipeName: string) => {
+	const deleteRecipe = (recipeName: string) => {
 		// Remove recipe from the order
 		const newRecipeOrder = recipes.filter((r) => r !== recipeName);
 

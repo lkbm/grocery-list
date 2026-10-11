@@ -14,7 +14,7 @@ interface AddItemsProps {
 	storeSections: string[];
 	onAddRecipeClick: () => void;
 	onEditRecipeClick: (recipeName: string) => void;
-	onDeleteRecipe: (recipeName: string) => Promise<void>;
+	onDeleteRecipe: (recipeName: string) => void;
 	isSorting: boolean;
 	onReorderRecipe: (recipeName: string, newIndex: number) => void;
 	onReorderSection: (sectionName: string, newIndex: number) => void;

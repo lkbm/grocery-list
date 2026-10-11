@@ -6,6 +6,7 @@ import {
 	mergeOrdered,
 	mergeOrderedWithTombstones,
 	mergeTombstones,
+	parseListData,
 	sanitizeListData,
 } from './merge';
 import { ListData } from './types';
@@ -98,6 +99,24 @@ describe('sanitizeListData', () => {
 		});
 		expect(result?.storeSections).toEqual(['produce', 'dairy']);
 		expect(result?.deletedSections).toEqual([{ name: 'bakery', deletedAt: EARLIER }]);
+	});
+});
+
+describe('parseListData', () => {
+	it('parses and sanitizes valid JSON', () => {
+		const result = parseListData(JSON.stringify({ items: [{ name: ' milk ', bogus: 1 }] }));
+		expect(result?.items).toEqual([{ name: 'milk' }]);
+	});
+
+	it('returns null for malformed JSON instead of throwing', () => {
+		expect(parseListData('{"items": [')).toBeNull();
+		expect(parseListData('')).toBeNull();
+	});
+
+	it('returns null for valid JSON that is not list data', () => {
+		expect(parseListData('null')).toBeNull();
+		expect(parseListData('"hello"')).toBeNull();
+		expect(parseListData('{"items": "nope"}')).toBeNull();
 	});
 });
 

@@ -70,6 +70,15 @@ export function sanitizeListData(raw: unknown): ListData | null {
 	};
 }
 
+// JSON.parse + sanitizeListData; returns null instead of throwing on malformed JSON.
+export function parseListData(text: string): ListData | null {
+	try {
+		return sanitizeListData(JSON.parse(text));
+	} catch {
+		return null;
+	}
+}
+
 export const getNewestOfEachItem = (itemList: Item[]): Item[] => {
 	const latestItems: { [key: string]: Item } = {};
 	itemList.forEach((item) => {

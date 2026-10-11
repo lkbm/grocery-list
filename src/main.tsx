@@ -2,8 +2,7 @@ import { Hono } from 'hono';
 import { secureHeaders } from 'hono/secure-headers';
 import { serveStatic } from 'hono/cloudflare-workers';
 import { blankList } from './App';
-import { ListData } from './types';
-import { mergeListData, sanitizeListData } from './merge';
+import { mergeListData, parseListData } from './merge';
 
 const MAX_LIST_BYTES = 512 * 1024; // 512KiB
 const VALID_KEY = /^[a-zA-Z0-9_-]{1,128}$/;
@@ -51,14 +50,12 @@ export class GroceryList {
 			const body = await request.text();
 			if (new TextEncoder().encode(body).length > MAX_LIST_BYTES)
 				return new Response('Payload too large', { status: 413 });
-			const sanitized = sanitizeListData(JSON.parse(body));
+			const sanitized = parseListData(body);
 			if (!sanitized) return new Response('Invalid list data', { status: 400 });
 			const stored = JSON.stringify(sanitized);
 			await this.state.storage.put('data', stored);
 			// Broadcast to any connected WS clients (e.g. when options list is updated via REST)
-			for (const ws of this.state.getWebSockets()) {
-				ws.send(stored);
-			}
+			this.broadcast(stored);
 			return new Response(JSON.stringify({ success: true }), {
 				headers: { 'Content-Type': 'application/json' },
 			});
@@ -66,30 +63,53 @@ export class GroceryList {
 		return new Response('Method not allowed', { status: 405 });
 	}
 
-	async webSocketMessage(ws: WebSocket, message: string): Promise<void> {
+	async webSocketMessage(ws: WebSocket, message: string | ArrayBuffer): Promise<void> {
+		if (typeof message !== 'string') {
+			ws.close(1003, 'Binary messages not supported');
+			return;
+		}
 		if (new TextEncoder().encode(message).length > MAX_LIST_BYTES) {
 			ws.close(1009, 'Message too large');
 			return;
 		}
-		const incoming = sanitizeListData(JSON.parse(message));
+		const incoming = parseListData(message);
 		if (!incoming) {
 			ws.close(1008, 'Invalid list data');
 			return;
 		}
-		const existing = await this.state.storage.get<string>('data');
-		const existingData: ListData = existing ? JSON.parse(existing) : blankList;
+		try {
+			const existing = await this.state.storage.get<string>('data');
+			const existingData = existing ? parseListData(existing) : blankList;
+			if (!existingData) {
+				// Don't merge into a blank list here - the next write would wipe whatever is stored
+				console.error('Stored list data is corrupt; refusing to overwrite');
+				ws.close(1011, 'Stored list data is corrupt');
+				return;
+			}
 
-		const merged = mergeListData(existingData, incoming);
+			const merged = mergeListData(existingData, incoming);
 
-		const mergedStr = JSON.stringify(merged);
-		if (new TextEncoder().encode(mergedStr).length > MAX_LIST_BYTES) {
-			ws.close(1009, 'List size limit exceeded');
-			return;
+			const mergedStr = JSON.stringify(merged);
+			if (new TextEncoder().encode(mergedStr).length > MAX_LIST_BYTES) {
+				ws.close(1009, 'List size limit exceeded');
+				return;
+			}
+			await this.state.storage.put('data', mergedStr);
+			this.broadcast(mergedStr);
+		} catch (error) {
+			console.error('Failed to save list update:', error);
+			ws.close(1011, 'Internal error');
 		}
-		await this.state.storage.put('data', mergedStr);
+	}
 
+	// Send to every connected client; one dead socket mustn't stop the rest getting the update
+	broadcast(message: string): void {
 		for (const client of this.state.getWebSockets()) {
-			client.send(mergedStr);
+			try {
+				client.send(message);
+			} catch (error) {
+				console.error('Failed to send to WebSocket client:', error);
+			}
 		}
 	}
 
@@ -99,11 +119,20 @@ export class GroceryList {
 
 	async webSocketError(ws: WebSocket, error: unknown): Promise<void> {
 		console.error('WebSocket error:', error);
-		ws.close();
+		try {
+			ws.close(1011, 'WebSocket error');
+		} catch {
+			// Already closed
+		}
 	}
 }
 
 const app = new Hono<{ Bindings: Env }>();
+
+app.onError((error, c) => {
+	console.error(`Unhandled error on ${c.req.method} ${c.req.path}:`, error);
+	return c.text('Internal server error', 500);
+});
 
 const secureHeadersMiddleware = secureHeaders({
 	xFrameOptions: 'DENY',

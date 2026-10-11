@@ -109,11 +109,15 @@ export const AddItems = memo(
 			}
 		};
 
+		const closeDeleteModal = () => {
+			setDeletingSectionName(null);
+			setDeleteItemsChecked(false);
+		};
+
 		const handleDeleteConfirm = () => {
 			if (deletingSectionName) {
 				onDeleteSection(deletingSectionName, deleteItemsChecked);
-				setDeletingSectionName(null);
-				setDeleteItemsChecked(false);
+				closeDeleteModal();
 			}
 		};
 
@@ -307,10 +311,7 @@ export const AddItems = memo(
 				{deletingSectionName && (
 					<div
 						className="modal-overlay"
-						onClick={() => {
-							setDeletingSectionName(null);
-							setDeleteItemsChecked(false);
-						}}
+						onClick={closeDeleteModal}
 					>
 						<div
 							className="modal-content delete-section-modal"
@@ -318,13 +319,7 @@ export const AddItems = memo(
 						>
 							<div className="modal-header">
 								<h2>Delete Section</h2>
-								<button
-									className="modal-close"
-									onClick={() => {
-										setDeletingSectionName(null);
-										setDeleteItemsChecked(false);
-									}}
-								>
+								<button className="modal-close" onClick={closeDeleteModal}>
 									&times;
 								</button>
 							</div>
@@ -343,14 +338,7 @@ export const AddItems = memo(
 								</label>
 							</div>
 							<div className="modal-footer">
-								<button
-									onClick={() => {
-										setDeletingSectionName(null);
-										setDeleteItemsChecked(false);
-									}}
-								>
-									Cancel
-								</button>
+								<button onClick={closeDeleteModal}>Cancel</button>
 								<button onClick={handleDeleteConfirm} className="delete-button">
 									Delete Section
 								</button>

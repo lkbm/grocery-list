@@ -4,6 +4,7 @@ import { Item } from './types';
 import { Tile } from './Tile';
 import { CustomItem } from './AddItems';
 import { AvailableItem } from './AvailableItem';
+import { sortBySection } from './helpers';
 
 interface AddRecipeModalProps {
 	possibleItems: Item[];
@@ -44,13 +45,10 @@ export const AddRecipeModal = ({ possibleItems, storeSections, onSave, onClose, 
 	// Items available to add (from possibleItems, excluding already added)
 	const availableItems = useMemo(() => {
 		const addedNames = recipeItems.map(i => i.name);
-		return possibleItems
-			.filter(item => !addedNames.includes(item.name))
-			.sort((a, b) => {
-				const categoryA = a.category || "unknown";
-				const categoryB = b.category || "unknown";
-				return storeSections.indexOf(categoryA) - storeSections.indexOf(categoryB);
-			});
+		return sortBySection(
+			possibleItems.filter(item => !addedNames.includes(item.name)),
+			storeSections,
+		);
 	}, [possibleItems, recipeItems, storeSections]);
 
 	// Group recipe items by category for display

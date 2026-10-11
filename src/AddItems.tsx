@@ -2,7 +2,7 @@ import { useState, useEffect, useMemo, useRef } from 'preact/hooks';
 import { memo } from 'preact/compat';
 import { Item } from './types';
 import { Tile } from './Tile';
-import { isDefaultItem } from './helpers';
+import { isDefaultItem, sortBySection } from './helpers';
 import { AvailableItem } from './AvailableItem';
 
 interface AddItemsProps {
@@ -69,16 +69,12 @@ export const AddItems = memo(
 
 		// Standard items: default items not already on the list
 		const standardItems = useMemo(() => {
-			// TODO: Missing categories end up at the otp (b/c indexOf is -1)
-			return possibleItems
-				.filter(
+			return sortBySection(
+				possibleItems.filter(
 					(item) => isDefaultItem(item) && !activeItemNames.includes(item.name),
-				)
-				.sort((a, b) => {
-					const categoryA = a.category || 'unknown';
-					const categoryB = b.category || 'unknown';
-					return storeSections.indexOf(categoryA) - storeSections.indexOf(categoryB);
-				});
+				),
+				storeSections,
+			);
 		}, [possibleItems, activeItemNames, storeSections]);
 
 		const filteredStandardItems = useMemo(() => {
@@ -100,13 +96,10 @@ export const AddItems = memo(
 
 		// Get items for a specific recipe
 		const getRecipeItems = (recipeName: string) => {
-			return possibleItems
-				.filter((item) => item.recipes?.includes(recipeName))
-				.sort((a, b) => {
-					const categoryA = a.category || 'unknown';
-					const categoryB = b.category || 'unknown';
-					return storeSections.indexOf(categoryA) - storeSections.indexOf(categoryB);
-				});
+			return sortBySection(
+				possibleItems.filter((item) => item.recipes?.includes(recipeName)),
+				storeSections,
+			);
 		};
 
 		const handleSectionDragStart =

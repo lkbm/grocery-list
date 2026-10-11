@@ -9,3 +9,18 @@ export const isDefaultItem = (item: Item): boolean => {
 };
 
 export const getNow = (): string => new Date().toISOString();
+
+// Sort items by their category's position in the store sections. Categories not in the list
+// (including items with no category, which count as "unknown") go last; sort is stable.
+export const sortBySection = (items: Item[], storeSections: string[]): Item[] => {
+	const rank = (item: Item) => {
+		const index = storeSections.indexOf(item.category || 'unknown');
+		return index === -1 ? Infinity : index;
+	};
+	return [...items].sort((a, b) => {
+		const rankA = rank(a);
+		const rankB = rank(b);
+		// Infinity - Infinity is NaN, so compare explicitly rather than subtracting
+		return rankA === rankB ? 0 : rankA < rankB ? -1 : 1;
+	});
+};

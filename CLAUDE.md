@@ -27,6 +27,7 @@ The application is a single-page app that allows users to manage grocery lists w
   - `PUT /api/state/:key` - save list data
 - Serves static assets from /dist
 - Uses Cloudflare Durable Objects for persistence
+- Pure sanitize/merge logic lives in src/merge.ts (tested in src/merge.test.ts); keep it free of worker and app imports so tests can load it
 
 ### Build Configuration
 - Vite with Preact preset
@@ -46,6 +47,7 @@ npm run deploy       # Deploy to Cloudflare Workers
 
 # Code Quality
 npm run lint         # ESLint checking
+npm test             # Run Vitest suite once (npm run test:watch for watch mode)
 npm run preview      # Preview production build
 ```
 

@@ -2,79 +2,10 @@ import { Hono } from 'hono';
 import { secureHeaders } from 'hono/secure-headers';
 import { serveStatic } from 'hono/cloudflare-workers';
 import { blankList } from './App';
-import { Item, ListData, Tombstone } from './types';
+import { ListData } from './types';
+import { mergeListData, sanitizeListData } from './merge';
 
 const MAX_LIST_BYTES = 512 * 1024; // 512KiB
-const VALID_STATUSES = new Set(['need', 'carted']);
-
-// Clamp an ISO timestamp to the current time if it's in the future or invalid.
-function clampTimestamp(iso: string): string {
-	const now = Date.now();
-	const parsed = Date.parse(iso);
-	if (isNaN(parsed) || parsed > now) return new Date(now).toISOString();
-	return iso;
-}
-
-function sanitizeItem(raw: unknown): Item | null {
-	if (!raw || typeof raw !== 'object') return null;
-	const obj = raw as Record<string, unknown>;
-	if (typeof obj.name !== 'string' || !obj.name.trim()) return null;
-
-	const item: Item = { name: obj.name.trim() };
-	if (obj.status !== undefined && obj.status !== null) {
-		if (!VALID_STATUSES.has(obj.status as string)) return null;
-		item.status = obj.status as 'need' | 'carted';
-	}
-	if (typeof obj.category === 'string') item.category = obj.category;
-	if (
-		Array.isArray(obj.recipes) &&
-		obj.recipes.every((r) => typeof r === 'string')
-	)
-		item.recipes = obj.recipes;
-	if (typeof obj.dateAdded === 'string')
-		item.dateAdded = clampTimestamp(obj.dateAdded);
-	if (typeof obj.lastUpdated === 'string')
-		item.lastUpdated = clampTimestamp(obj.lastUpdated);
-	if (typeof obj.deleted === 'boolean') item.deleted = obj.deleted;
-	if (typeof obj.deletedAt === 'string')
-		item.deletedAt = clampTimestamp(obj.deletedAt);
-	if (typeof obj.sortIndex === 'number') item.sortIndex = obj.sortIndex;
-	return item;
-}
-
-function sanitizeStringArray(raw: unknown): string[] {
-	if (!Array.isArray(raw)) return [];
-	return raw.filter((s): s is string => typeof s === 'string');
-}
-
-function sanitizeTombstones(raw: unknown): Tombstone[] {
-	if (!Array.isArray(raw)) return [];
-	const result: Tombstone[] = [];
-	for (const entry of raw) {
-		if (!entry || typeof entry !== 'object') continue;
-		const obj = entry as Record<string, unknown>;
-		if (typeof obj.name !== 'string' || !obj.name.trim()) continue;
-		if (typeof obj.deletedAt !== 'string') continue;
-		result.push({ name: obj.name.trim(), deletedAt: clampTimestamp(obj.deletedAt) });
-	}
-	return result;
-}
-
-// Parse and validate incoming list data, stripping unknown fields and clamping
-// future timestamps. Returns null if the payload is structurally invalid.
-function sanitizeListData(raw: unknown): ListData | null {
-	if (!raw || typeof raw !== 'object') return null;
-	const obj = raw as Record<string, unknown>;
-	if (!Array.isArray(obj.items)) return null;
-	return {
-		items: obj.items.map(sanitizeItem).filter((i): i is Item => i !== null),
-		recipeOrder: sanitizeStringArray(obj.recipeOrder),
-		storeSections: sanitizeStringArray(obj.storeSections),
-		deletedRecipes: sanitizeTombstones(obj.deletedRecipes),
-		deletedSections: sanitizeTombstones(obj.deletedSections),
-	};
-}
-
 const VALID_KEY = /^[a-zA-Z0-9_-]{1,128}$/;
 
 function isValidKey(key: string): boolean {
@@ -87,64 +18,6 @@ export interface Env {
 		limit(opts: { key: string }): Promise<{ success: boolean }>;
 	};
 }
-
-const getNewestOfEachItem = (itemList: Item[]): Item[] => {
-	const latestItems: { [key: string]: Item } = {};
-	itemList.forEach((item) => {
-		const existing = latestItems[item.name];
-		const itemLastUpdated = item.lastUpdated || '1970-01-01T00:00:00Z';
-		const existingLastUpdated = existing?.lastUpdated || '1970-01-01T00:00:00Z';
-		if (!existing || itemLastUpdated > existingLastUpdated) {
-			latestItems[item.name] = item;
-		}
-	});
-	return Object.values(latestItems);
-};
-
-// Union merge preserving existing order, appending new entries from incoming
-// Incoming order wins, so reorders stick. Names only the server has (e.g. just added by another
-// client) are kept, placed right after the name they followed in the existing order.
-const mergeOrdered = (existing: string[], incoming: string[]): string[] => {
-	const result = [...incoming];
-	existing.forEach((name, i) => {
-		if (result.includes(name)) return;
-		const predecessorIndex = i > 0 ? result.indexOf(existing[i - 1]) : -1;
-		result.splice(predecessorIndex + 1, 0, name);
-	});
-	return result;
-};
-
-// Newest-wins merge of tombstones by name, mirroring getNewestOfEachItem
-const mergeTombstones = (existing: Tombstone[] = [], incoming: Tombstone[] = []): Tombstone[] => {
-	const latest: { [name: string]: Tombstone } = {};
-	for (const tombstone of [...existing, ...incoming]) {
-		const current = latest[tombstone.name];
-		if (!current || tombstone.deletedAt > current.deletedAt) latest[tombstone.name] = tombstone;
-	}
-	return Object.values(latest);
-};
-
-// A union merge (mergeOrdered) can't tell a removal from "the other side just hasn't seen it yet" -
-// it can only ever add names, never drop them. Tombstones supply the missing removal signal: a
-// unioned name is dropped unless some non-deleted item's tag/category for it was touched after
-// the tombstone was created, which means the name was intentionally reused since the deletion.
-const mergeOrderedWithTombstones = (
-	existingNames: string[],
-	incomingNames: string[],
-	tombstones: Tombstone[],
-	items: Item[],
-	namesForItem: (item: Item) => string[],
-): string[] => {
-	const union = mergeOrdered(existingNames, incomingNames);
-	const tombstoneByName = new Map(tombstones.map((t) => [t.name, t.deletedAt]));
-	return union.filter((name) => {
-		const deletedAt = tombstoneByName.get(name);
-		if (!deletedAt) return true;
-		return items.some(
-			(item) => !item.deleted && namesForItem(item).includes(name) && (item.lastUpdated || '') > deletedAt,
-		);
-	});
-};
 
 export class GroceryList {
 	state: DurableObjectState;
@@ -206,29 +79,7 @@ export class GroceryList {
 		const existing = await this.state.storage.get<string>('data');
 		const existingData: ListData = existing ? JSON.parse(existing) : blankList;
 
-		const mergedItems = getNewestOfEachItem([...existingData.items, ...incoming.items]);
-		const mergedDeletedRecipes = mergeTombstones(existingData.deletedRecipes, incoming.deletedRecipes);
-		const mergedDeletedSections = mergeTombstones(existingData.deletedSections, incoming.deletedSections);
-
-		const merged: ListData = {
-			items: mergedItems,
-			recipeOrder: mergeOrderedWithTombstones(
-				existingData.recipeOrder,
-				incoming.recipeOrder,
-				mergedDeletedRecipes,
-				mergedItems,
-				(item) => item.recipes || [],
-			),
-			storeSections: mergeOrderedWithTombstones(
-				existingData.storeSections,
-				incoming.storeSections,
-				mergedDeletedSections,
-				mergedItems,
-				(item) => (item.category ? [item.category] : []),
-			),
-			deletedRecipes: mergedDeletedRecipes,
-			deletedSections: mergedDeletedSections,
-		};
+		const merged = mergeListData(existingData, incoming);
 
 		const mergedStr = JSON.stringify(merged);
 		if (new TextEncoder().encode(mergedStr).length > MAX_LIST_BYTES) {

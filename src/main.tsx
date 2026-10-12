@@ -1,6 +1,4 @@
 import { Hono } from 'hono';
-import { secureHeaders } from 'hono/secure-headers';
-import { serveStatic } from 'hono/cloudflare-workers';
 import { blankList } from './App';
 import { mergeListData, parseListData } from './merge';
 
@@ -134,20 +132,6 @@ app.onError((error, c) => {
 	return c.text('Internal server error', 500);
 });
 
-const secureHeadersMiddleware = secureHeaders({
-	xFrameOptions: 'DENY',
-	xContentTypeOptions: 'nosniff',
-	contentSecurityPolicy: {
-		defaultSrc: ["'self'"],
-		scriptSrc: ["'self'"],
-		styleSrc: ["'self'", "'unsafe-inline'"],
-		connectSrc: ["'self'"],
-		imgSrc: ["'self'", 'data:'],
-		objectSrc: ["'none'"],
-		frameAncestors: ["'none'"],
-	},
-});
-
 app.use('*', async (c, next) => {
 	const ip = c.req.header('CF-Connecting-IP') ?? 'unknown';
 	const { success } = await c.env.GROCERY_RATE_LIMITER.limit({ key: ip });
@@ -157,12 +141,8 @@ app.use('*', async (c, next) => {
 	return next();
 });
 
-// Security headers only apply to the HTML shell — not API responses or WS upgrades.
-app.use('*', async (c, next) => {
-	if (c.req.path.startsWith('/api/') || c.req.header('Upgrade') === 'websocket')
-		return next();
-	return secureHeadersMiddleware(c, next);
-});
+// The HTML shell and its assets are served by [assets] in wrangler.toml before this worker runs;
+// their security headers live in public/_headers. Only /api/* requests reach the routes below.
 
 app.get('/api/ws/:key', async (c) => {
 	const key = c.req.param('key');
@@ -187,18 +167,5 @@ app.put('/api/state/:key', async (c) => {
 	const stub = c.env.GROCERYLIST.get(id);
 	return stub.fetch(c.req.raw);
 });
-
-// Serve static assets
-app.get(
-	'*',
-	serveStatic({
-		root: './dist',
-		rewriteRequestPath: (path) => {
-			if (path === '/') return '/index.html';
-			return path;
-		},
-		manifest: {},
-	}),
-);
 
 export default app;

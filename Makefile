@@ -4,10 +4,10 @@ build:
 	npm run build
 
 dev:
-	npx wrangler dev
+	npx cf dev
 
 deploy:
-	npx wrangler deploy
+	npx cf deploy
 
 format:
 	oxfmt --config=/Users/luca/dotfiles/.oxfmtrc.json

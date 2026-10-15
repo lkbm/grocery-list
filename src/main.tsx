@@ -141,7 +141,7 @@ app.use('*', async (c, next) => {
 	return next();
 });
 
-// The HTML shell and its assets are served by [assets] in wrangler.toml before this worker runs;
+// The HTML shell and its assets are served by assetsDirectory in wrangler.config.ts before this worker runs;
 // their security headers live in public/_headers. Only /api/* requests reach the routes below.
 
 app.get('/api/ws/:key', async (c) => {

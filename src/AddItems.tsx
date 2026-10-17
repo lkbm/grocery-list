@@ -85,11 +85,22 @@ export const AddItems = memo(
 
 		const trimmedFilter = searchFilter.trim();
 
-		// Offer "Add to [section]" unless the typed text already names a standard item
-		// (otherwise clicking it would create a duplicate instead of reusing the existing one).
+		// Items already on the list that match the filter, shown so the user doesn't re-add them
+		const matchingActiveNames = useMemo(() => {
+			if (!trimmedFilter) return [];
+			const query = trimmedFilter.toLowerCase();
+			return activeItemNames.filter((name) => name.toLowerCase().includes(query));
+		}, [activeItemNames, trimmedFilter]);
+
+		// Offer "Add to [section]" unless the typed text already names a standard item or an
+		// item on the list (otherwise clicking it would create a duplicate).
 		const shouldShowAddToSection = (filter: string): boolean => {
 			const query = filter.toLowerCase();
-			return !standardItems.some((item) => item.name.toLowerCase() === query);
+			const matches = (name: string) => name.toLowerCase() === query;
+			return (
+				!standardItems.some((item) => matches(item.name)) &&
+				!activeItemNames.some(matches)
+			);
 		};
 
 		// Get items for a specific recipe
@@ -160,6 +171,17 @@ export const AddItems = memo(
 				)}
 				{!collapsedSections.standardItems && (
 					<div className="item-grid">
+						{!isSorting &&
+							matchingActiveNames.map((name) => (
+								<Tile
+									key={`on-list-${name}`}
+									className="available-item on-list"
+									title="Already on the list"
+									onClick={() => setSearchFilter('')}
+								>
+									{name}
+								</Tile>
+							))}
 						{isSorting
 							? storeSections.map((category, index) => (
 									<div key={category} className="section-row">

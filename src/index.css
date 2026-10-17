@@ -241,6 +241,13 @@ hr {
   background-color: var(--bg-available);
 }
 
+/* Filter matches that are already on the list */
+.available-item.on-list:not(.carted):not(.removable-item) {
+  background-color: var(--bg-warning);
+  border: 2px solid var(--border-warning);
+  color: var(--text);
+}
+
 h2,
 h3 {
   grid-column: 1 / -1;
